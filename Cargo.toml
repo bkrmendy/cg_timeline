@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "crates/cli",
+    "crates/timeline_lib",
+    "crates/desktop/src-tauri",
+    "crates/backend"
+]

@@ -1,0 +1,17 @@
+[package]
+name = "timeline-backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-session = { version = "0.7.2", features = ["redis-rs-session"] }
+actix-web = "4.4.0"
+rand = "0.8.5"
+redis = "0.23.2"
+serde = { version = "1.0.118", features = ["derive"] }
+uuid = { version = "1.4.1", features = ["v4"] }
+timeline_lib = { path = "../timeline_lib/" }
+rusqlite = "0.29.0"
+rocksdb = "0.21.0"

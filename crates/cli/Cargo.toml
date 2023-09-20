@@ -1,0 +1,17 @@
+[package]
+name = "timeline-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+clap = { version = "4.3.3", features = ["derive"] }
+env_logger = "0.10.0"
+log = "0.4.19"
+timeline_lib = { path = "../timeline_lib/" }
+reqwest = {version = "0.11.20", features = [ "blocking"]}
+
+[dependencies.uuid]
+version = "1.4.1"
+features = [
+    "v4",                # Lets you generate random UUIDs
+]
