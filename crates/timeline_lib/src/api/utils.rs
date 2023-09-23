@@ -2,7 +2,6 @@ use std::{
     collections::HashSet,
     fs::{self, File},
     io::Read,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use tempfile::NamedTempFile;
@@ -75,12 +74,6 @@ pub fn read_exchange_from_file(from_path: &str) -> Result<Exchange, String> {
     Ok(exchange)
 }
 
-pub fn timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs()
-}
 #[cfg(test)]
 mod test {
     use tempfile::NamedTempFile;

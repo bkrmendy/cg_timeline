@@ -14,6 +14,7 @@ serde = {version = "1.0.183", features = ["derive"]}
 bincode = "1.3.3"
 tempfile = "3.6.0"
 zstd = "0.12.3"
+filetime = "0.2.22"
 
 [dependencies.flate2]
 version = "1.0.17"

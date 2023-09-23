@@ -1,7 +1,10 @@
 use crate::{
     api::{
-        common::{blend_file_data_from_file, parse_hash_list, read_latest_commit_hash_on_branch},
-        utils::{block_hash_diff, timestamp},
+        common::{
+            blend_file_data_from_file, check_if_file_modified, parse_hash_list,
+            read_latest_commit_hash_on_branch,
+        },
+        utils::block_hash_diff,
     },
     db::{
         db_ops::{DBError, Persistence, DB},
@@ -18,6 +21,8 @@ pub fn create_new_commit(
     message: Option<String>,
 ) -> Result<(), DBError> {
     let mut conn = Persistence::open(db_path)?;
+
+    let file_last_mod_time = check_if_file_modified(&conn, file_path)?;
 
     let start_commit_command = Instant::now();
     let blend_data = blend_file_data_from_file(file_path)
@@ -59,10 +64,12 @@ pub fn create_new_commit(
             branch: current_branch_name,
             message: message.unwrap_or_default(),
             author: name,
-            date: timestamp(),
+            date: file_last_mod_time as u64,
             header: blend_data.header_bytes,
             blocks: blend_data.blocks,
         };
+
+        Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
 
         Persistence::write_commit(tx, commit)
     })?;

@@ -1,3 +1,4 @@
+use filetime::FileTime;
 use flate2::{write::GzEncoder, Compression};
 use rayon::prelude::*;
 
@@ -13,7 +14,7 @@ use crate::{
     measure_time,
 };
 
-use std::{fmt::Display, io::Write};
+use std::{fmt::Display, fs, io::Write};
 
 pub fn read_latest_commit_hash_on_branch(
     conn: &Persistence,
@@ -21,6 +22,32 @@ pub fn read_latest_commit_hash_on_branch(
 ) -> Result<String, DBError> {
     conn.read_branch_tip(branch_name)
         .and_then(|tip| tip.ok_or(DBError::Error("Branch tip does not exist".to_owned())))
+}
+
+pub fn get_file_mod_time(file_path: &str) -> Result<i64, DBError> {
+    let metadata = fs::metadata(file_path)
+        .map_err(|e| DBError::Consistency(format!("File {} does not exist ({}))", file_path, e)))?;
+
+    Ok(FileTime::from_last_modification_time(&metadata).unix_seconds())
+}
+
+pub fn check_if_file_modified(db: &Persistence, file_path: &str) -> Result<i64, DBError> {
+    let last_mod_time_from_file = get_file_mod_time(file_path)?;
+    let last_mod_time_from_db = db.read_last_modification_time()?;
+
+    if last_mod_time_from_db.is_none() {
+        return Ok(last_mod_time_from_file);
+    }
+
+    let last_mod_time_from_db = last_mod_time_from_db.unwrap();
+
+    if last_mod_time_from_db < last_mod_time_from_file {
+        return Ok(last_mod_time_from_file);
+    }
+
+    Err(DBError::Error(
+        "File not modified since the last change".to_owned(),
+    ))
 }
 
 pub struct BlendFileDataForCheckpoint {
@@ -82,7 +109,7 @@ pub fn blend_file_data_from_file(
             .map(move |b| b.hash.to_owned())
             .collect()
     });
-    let blocks_str = measure_time!("Printing hash list", { print_hash_list(block_hashes) });
+    let blocks_str = measure_time!("Printing hash list", print_hash_list(block_hashes));
 
     let blend_hash = measure_time!(format!("Hashing {:?}", path_to_blend), {
         md5::compute(&blocks_str)
@@ -104,14 +131,14 @@ pub struct ParsedBlendFile {
 
 #[derive(Debug)]
 pub enum BlendFileParseError {
-    NoHeader,
+    NotABlendFile,
     UnexpectedEndOfInput,
 }
 
 impl Display for BlendFileParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BlendFileParseError::NoHeader => write!(f, "No header found"),
+            BlendFileParseError::NotABlendFile => write!(f, "Not a blend file"),
             BlendFileParseError::UnexpectedEndOfInput => write!(f, "Unexpected end of input"),
         }
     }
@@ -164,7 +191,7 @@ fn parse_u64(data: &[u8], endianness: Endianness) -> BlendFileParseResult<u64> {
 pub fn parse_header_manual(data: &[u8]) -> BlendFileParseResult<Header> {
     let (header, rest) = get_bytes::<7>(data)?;
     if &header != b"BLENDER" {
-        return Err(BlendFileParseError::NoHeader);
+        return Err(BlendFileParseError::NotABlendFile);
     }
 
     let (pointer_size, rest) = get_bytes::<1>(rest).map(|res| {

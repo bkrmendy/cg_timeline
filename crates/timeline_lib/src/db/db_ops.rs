@@ -68,7 +68,13 @@ pub trait DB: Sized {
     ) -> Result<(), DBError>;
 
     fn read_project_id(&self) -> Result<String, DBError>;
-    fn write_project_id(tx: &rusqlite::Transaction, project_id: &str) -> Result<(), DBError>;
+    fn write_project_id(tx: &rusqlite::Transaction, last_mod_time: &str) -> Result<(), DBError>;
+
+    fn read_last_modification_time(&self) -> Result<Option<i64>, DBError>;
+    fn write_last_modifiction_time(
+        tx: &rusqlite::Transaction,
+        last_mod_time: i64,
+    ) -> Result<(), DBError>;
 
     fn read_name(&self) -> Result<Option<String>, DBError>;
     fn write_name(tx: &rusqlite::Transaction, name: &str) -> Result<(), DBError>;
@@ -96,6 +102,11 @@ fn block_hash_key(key: &str) -> String {
 #[inline]
 fn working_dir_key(key: &str) -> String {
     format!("working-dir-{:?}", key)
+}
+
+#[inline]
+fn last_mod_time_key() -> String {
+    format!("LAST_MOD_TIME")
 }
 
 #[inline]
@@ -580,6 +591,25 @@ impl DB for Persistence {
 
     fn write_name(tx: &rusqlite::Transaction, name: &str) -> Result<(), DBError> {
         write_config_inner(tx, &user_name_key(), name)
+    }
+
+    fn read_last_modification_time(&self) -> Result<Option<i64>, DBError> {
+        let raw = read_config_inner(&self.sqlite_db, &last_mod_time_key())?;
+        if let Some(raw) = raw {
+            return raw
+                .parse::<i64>()
+                .map(Some)
+                .map_err(|e| DBError::Error(format!("Cannot parse timestamp from string: {}", e)));
+        }
+
+        Ok(None)
+    }
+
+    fn write_last_modifiction_time(
+        tx: &rusqlite::Transaction,
+        last_mod_time: i64,
+    ) -> Result<(), DBError> {
+        write_config_inner(tx, &last_mod_time_key(), &last_mod_time.to_string())
     }
 }
 

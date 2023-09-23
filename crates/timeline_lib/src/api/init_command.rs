@@ -3,7 +3,7 @@ use crate::db::{
     structs::Commit,
 };
 
-use super::{common::blend_file_data_from_file, utils::timestamp};
+use super::common::{blend_file_data_from_file, get_file_mod_time};
 
 pub const INITIAL_COMMIT_HASH: &str = "initial";
 pub const MAIN_BRANCH_NAME: &str = "main";
@@ -11,6 +11,8 @@ pub const MAIN_BRANCH_NAME: &str = "main";
 pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(), DBError> {
     let blend_data = blend_file_data_from_file(path_to_blend)
         .map_err(|e| DBError::Error(format!("Error parsing blend file: {}", e)))?;
+
+    let file_last_mod_time = get_file_mod_time(path_to_blend)?;
 
     let mut db = Persistence::open(db_path)?;
 
@@ -32,7 +34,7 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
             branch: String::from(MAIN_BRANCH_NAME),
             message: String::from("Initial checkpoint"),
             author: name,
-            date: timestamp(),
+            date: file_last_mod_time as u64,
             header: blend_data.header_bytes,
             blocks: blend_data.blocks,
         };
@@ -45,6 +47,7 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
         Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
         Persistence::write_current_branch_name(tx, MAIN_BRANCH_NAME)?;
         Persistence::write_project_id(tx, project_id)?;
+        Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
         Ok(())
     })?;
     Ok(())
