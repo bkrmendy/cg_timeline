@@ -14,10 +14,6 @@ pub enum Commands {
         /// path of blender file to read
         #[arg(short, long)]
         from_path: String,
-
-        /// path to write to
-        #[arg(short, long)]
-        to_path: String,
     },
 
     /// Create a checkpoint with the current contents of the file

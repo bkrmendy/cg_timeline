@@ -140,7 +140,7 @@ fn main() {
     let args = parse_args();
     env_logger::init();
     match args.command {
-        Commands::Test { from_path, to_path } => run_command_test(from_path, to_path),
+        Commands::Test { from_path } => run_command_test(from_path),
         Commands::Commit {
             db_path,
             file_path,

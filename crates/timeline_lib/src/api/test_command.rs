@@ -1,23 +1,21 @@
 use crate::{
-    api::common::{parse_blend_manual, print_blend_manual},
-    blend::utils::{from_file, to_file_transactional},
+    api::common::{parse_blend_manual, parse_sdna},
+    blend::utils::from_file,
 };
 
-pub fn run_command_test(from_file_path: String, to_file_path: String) {
+pub fn run_command_test(from_file_path: String) {
     let blend_bytes = from_file(&from_file_path).expect("cannot unpack blend file");
 
     let parsed_blend_file = parse_blend_manual(blend_bytes).expect("cannot parse blend file");
-    println!(
-        "{:?} - {:?}",
-        parsed_blend_file.header,
-        parsed_blend_file.blocks.len()
-    );
 
-    let mut write_back: Vec<u8> = vec![];
-    print_blend_manual(parsed_blend_file, &mut write_back);
+    let sdna = parsed_blend_file
+        .blocks
+        .into_iter()
+        .find(|b| &b.code == b"DNA1")
+        .expect("whoops");
 
-    let p1 = vec![];
-    let p2 = vec![];
+    let (sdna_info, _) =
+        parse_sdna(&sdna.data, parsed_blend_file.header.endianness).expect("whoops, sdna");
 
-    to_file_transactional(&to_file_path, write_back, p1, p2).expect("cannot write to file")
+    println!("{:?}", sdna_info.names)
 }

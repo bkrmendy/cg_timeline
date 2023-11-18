@@ -1,10 +1,12 @@
 use filetime::FileTime;
 use flate2::{write::GzEncoder, Compression};
-use rayon::prelude::*;
+use rayon::{iter::plumbing::ProducerCallback, prelude::*};
 
 use crate::{
     blend::{
-        blend_file::{Endianness, Header, PointerSize, SimpleParsedBlock},
+        blend_file::{
+            DNAField, DNAInfo, DNAStruct, Endianness, Header, PointerSize, SimpleParsedBlock,
+        },
         utils::{from_file, Either},
     },
     db::{
@@ -133,6 +135,8 @@ pub struct ParsedBlendFile {
 pub enum BlendFileParseError {
     NotABlendFile,
     UnexpectedEndOfInput,
+    ConversionFailed,
+    TagNotMatching(String),
 }
 
 impl Display for BlendFileParseError {
@@ -140,6 +144,8 @@ impl Display for BlendFileParseError {
         match self {
             BlendFileParseError::NotABlendFile => write!(f, "Not a blend file"),
             BlendFileParseError::UnexpectedEndOfInput => write!(f, "Unexpected end of input"),
+            BlendFileParseError::ConversionFailed => write!(f, "Conversion failed"),
+            BlendFileParseError::TagNotMatching(tag) => write!(f, "Tag did not match: {}", tag),
         }
     }
 }
@@ -163,11 +169,80 @@ fn get_bytes<const N: usize>(data: &[u8]) -> BlendFileParseResult<[u8; N]> {
     Ok((bytes, rest))
 }
 
+fn get_tag<const N: usize>(data: &[u8], tag: [u8; N]) -> BlendFileParseResult<()> {
+    let (result, data) = get_bytes::<N>(data)?;
+    if result == tag {
+        return Ok(((), data));
+    }
+
+    Err(BlendFileParseError::TagNotMatching(
+        String::from_utf8(tag.to_vec()).unwrap(),
+    ))
+}
+
+fn multi<T, F>(data: &[u8], times: i32, callback: F) -> BlendFileParseResult<Vec<T>>
+where
+    F: Fn(&[u8]) -> BlendFileParseResult<T>,
+{
+    let mut working = data;
+    let mut result: Vec<T> = Vec::new();
+    for _ in 0..times {
+        let (parsed, rest_of_data) = callback(working)?;
+        working = rest_of_data;
+        result.push(parsed)
+    }
+
+    Ok((result, working))
+}
+
+fn parse_u16(data: &[u8], endianness: Endianness) -> BlendFileParseResult<u16> {
+    match endianness {
+        Endianness::Big => get_bytes::<2>(data).map(|bs| lmap(bs, u16::from_be_bytes)),
+        Endianness::Little => get_bytes::<2>(data).map(|bs| lmap(bs, u16::from_le_bytes)),
+    }
+}
+
 fn parse_u32(data: &[u8], endianness: Endianness) -> BlendFileParseResult<u32> {
     match endianness {
         Endianness::Big => get_bytes::<4>(data).map(|bs| lmap(bs, u32::from_be_bytes)),
         Endianness::Little => get_bytes::<4>(data).map(|bs| lmap(bs, u32::from_le_bytes)),
     }
+}
+
+fn parse_i16(data: &[u8], endianness: Endianness) -> BlendFileParseResult<i16> {
+    match endianness {
+        Endianness::Big => get_bytes::<2>(data).map(|bs| lmap(bs, i16::from_be_bytes)),
+        Endianness::Little => get_bytes::<2>(data).map(|bs| lmap(bs, i16::from_le_bytes)),
+    }
+}
+
+fn parse_i32(data: &[u8], endianness: Endianness) -> BlendFileParseResult<i32> {
+    match endianness {
+        Endianness::Big => get_bytes::<4>(data).map(|bs| lmap(bs, i32::from_be_bytes)),
+        Endianness::Little => get_bytes::<4>(data).map(|bs| lmap(bs, i32::from_le_bytes)),
+    }
+}
+
+fn parse_null_terminated_string(data: &[u8]) -> BlendFileParseResult<String> {
+    let null_range_end = data
+        .iter()
+        .position(|&c| c == b'\0')
+        .ok_or(BlendFileParseError::UnexpectedEndOfInput)?;
+
+    let string = String::from_utf8(data[0..null_range_end].to_vec())
+        .map_err(|_| BlendFileParseError::ConversionFailed)?;
+    let rest = &data[null_range_end + 1..];
+
+    Ok((string, rest))
+}
+
+fn parse_padding_zeros(data: &[u8]) -> BlendFileParseResult<&[u8]> {
+    let padding_end = data
+        .iter()
+        .position(|&c| c != b'\0')
+        .ok_or(BlendFileParseError::UnexpectedEndOfInput)?;
+
+    Ok((&data[0..padding_end], &data[padding_end..]))
 }
 
 fn get_byte_vec(data: &[u8], count: u32) -> BlendFileParseResult<Vec<u8>> {
@@ -287,6 +362,56 @@ pub fn parse_block_manual(
             data,
         },
         blend_data,
+    ))
+}
+
+fn parse_field(data: &[u8], endianness: Endianness) -> BlendFileParseResult<DNAField> {
+    let (type_idx, data) = parse_i16(data, endianness)?;
+    let (name_idx, data) = parse_i16(data, endianness)?;
+    Ok((DNAField { type_idx, name_idx }, data))
+}
+
+fn parse_struct(data: &[u8], endianness: Endianness) -> BlendFileParseResult<DNAStruct> {
+    let (type_idx, data) = parse_i16(data, endianness)?;
+    let (fields_len, data) = parse_i16(data, endianness)?;
+    let fields_len_as_i32 = i32::from(fields_len);
+    let (fields, data) = multi(data, fields_len_as_i32, |d| parse_field(d, endianness))?;
+
+    Ok((DNAStruct { type_idx, fields }, data))
+}
+
+pub fn parse_sdna(data: &[u8], endianness: Endianness) -> BlendFileParseResult<DNAInfo> {
+    let ((), data) = get_tag(data, *b"SDNA")?;
+
+    let ((), data) = get_tag(data, *b"NAME")?;
+    let (names_len, data) = parse_i32(data, endianness)?;
+    let (names, data) = multi(data, names_len, parse_null_terminated_string)?;
+
+    let (_, data) = parse_padding_zeros(data)?;
+
+    let ((), data) = get_tag(data, *b"TYPE")?;
+    let (types_len, data) = parse_i32(data, endianness)?;
+    let (types, data) = multi(data, types_len, parse_null_terminated_string)?;
+
+    let (_, data) = parse_padding_zeros(data)?;
+
+    let ((), data) = get_tag::<4>(data, *b"TLEN")?;
+    let (type_lengths, data) = multi(data, types_len, |d| parse_u16(d, endianness))?;
+
+    let (_, data) = parse_padding_zeros(data)?;
+
+    let ((), data) = get_tag(data, *b"STRC")?;
+    let (structs_len, data) = parse_i32(data, endianness)?;
+    let (structs, data) = multi(data, structs_len, |d| parse_struct(d, endianness))?;
+
+    Ok((
+        DNAInfo {
+            names,
+            types,
+            type_lengths,
+            structs,
+        },
+        data,
     ))
 }
 

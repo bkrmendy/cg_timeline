@@ -119,3 +119,21 @@ pub struct SimpleParsedBlock {
     pub count: u32,
     pub data: Vec<u8>,
 }
+#[derive(Debug)]
+pub struct DNAField {
+    pub type_idx: i16,
+    pub name_idx: i16,
+}
+#[derive(Debug)]
+pub struct DNAStruct {
+    pub type_idx: i16,
+    pub fields: Vec<DNAField>,
+}
+
+#[derive(Debug)]
+pub struct DNAInfo {
+    pub names: Vec<String>,
+    pub types: Vec<String>,
+    pub type_lengths: Vec<u16>,
+    pub structs: Vec<DNAStruct>,
+}
