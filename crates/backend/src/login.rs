@@ -7,8 +7,6 @@ use uuid::Uuid;
 
 use crate::utils::{gen_code, e500};
 
-
-
 pub const REDIS_URL: &str = "redis://127.0.0.1/";
 const EXPIRATION_SECS: usize = 300;
 

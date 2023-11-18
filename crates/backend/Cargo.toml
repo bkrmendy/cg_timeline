@@ -15,3 +15,4 @@ uuid = { version = "1.4.1", features = ["v4"] }
 timeline_lib = { path = "../timeline_lib/" }
 rusqlite = "0.29.0"
 rocksdb = "0.21.0"
+postgres = "0.19.7"
