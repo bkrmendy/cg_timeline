@@ -14,6 +14,7 @@ bl_info = {
 URL = 'http://127.0.0.1:8080'
 
 API_NOT_AVAILABLE_ERROR = "Server not running!"
+CANNOT_CONNECT_ERROR = "Cannot connect to timeline!"
 
 
 CHECKMARK_ICON = 'CHECKMARK'
@@ -45,6 +46,24 @@ def with_healthcheck(function):
             return (False, API_NOT_AVAILABLE_ERROR)
         return function(*args, **kwargs)
     return wrapper
+
+
+def call_connect_api():
+    file_path = get_file_path()
+    db_path = get_db_path(file_path)
+    url = f'{URL}/connect'
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        'db_path': db_path,
+        'file_path': file_path,
+    }
+
+    try:
+        requests.post(url, headers=headers,
+                      data=json.dumps(data)).raise_for_status()
+        return (True, None)
+    except requests.exceptions.RequestException as err:
+        return (False, err.response.json())
 
 
 @with_healthcheck
@@ -199,6 +218,10 @@ def call_call_get_latest_commit_hash_operator():
     bpy.ops.wm.get_latest_commit_hash_operator()
 
 
+def call_connect_operator():
+    bpy.ops.wm.connect()
+
+
 def run_onload_ops():
     call_get_current_branch_operator()
     call_list_branches_operator()
@@ -221,6 +244,22 @@ class WaitCursor():
 
     def __exit__(self, *args, **kwargs):
         pass
+
+
+class ConnectOperator(bpy.types.Operator):
+    """Connect to the Timeline"""
+    bl_idname = "wm.connect"
+    bl_label = "Connect to the Timeline"
+
+    def execute(self, context):
+        (success, _) = call_connect_api()
+        if not success:
+            self.report({'ERROR'}, API_NOT_AVAILABLE_ERROR)
+            return {'FINISHED'}
+        bpy.types.Scene.connected = True
+        run_onload_ops()
+
+        return {'FINISHED'}
 
 
 class ListCheckpointsOperator(bpy.types.Operator):
@@ -441,6 +480,10 @@ class TimelinePanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
+        if not context.scene.connected:
+            layout.operator("wm.connect", text="Connect to Timeline")
+            return
+
         # BRANCHES
         branches_box = layout.box()
         branches_box.label(text="Branches")
@@ -479,6 +522,7 @@ class TimelinePanel(bpy.types.Panel):
 
 
 def register():
+    bpy.utils.register_class(ConnectOperator)
     bpy.utils.register_class(ListCheckpointsOperator)
     bpy.utils.register_class(ListBranchesOperator)
     bpy.utils.register_class(SwitchBranchesOperator)
@@ -492,6 +536,8 @@ def register():
     bpy.utils.register_class(RefreshOperator)
     bpy.utils.register_class(TimelinePanel)
 
+    bpy.types.Scene.connected = bpy.props.BoolProperty(
+        name='connected', default=False)
     bpy.types.Scene.checkpoint_items = bpy.props.CollectionProperty(
         type=CheckpointItem)
     bpy.types.Scene.branch_items = bpy.props.CollectionProperty(
@@ -501,10 +547,11 @@ def register():
     bpy.types.Scene.commit_message = bpy.props.StringProperty(
         name="", options={'TEXTEDIT_UPDATE'})
 
-    Timer(1, run_onload_ops, ()).start()
+    Timer(100, run_onload_ops, ()).start()
 
 
 def unregister():
+    bpy.utils.unregister_class(ConnectOperator)
     bpy.utils.unregister_class(ListCheckpointsOperator)
     bpy.utils.unregister_class(ListBranchesOperator)
     bpy.utils.unregister_class(SwitchBranchesOperator)
@@ -518,6 +565,7 @@ def unregister():
     bpy.utils.unregister_class(RefreshOperator)
     bpy.utils.unregister_class(TimelinePanel)
 
+    del bpy.types.Scene.connected
     del bpy.types.Scene.checkpoint_items
     del bpy.types.Scene.branch_items
     del bpy.types.Scene.commit_message

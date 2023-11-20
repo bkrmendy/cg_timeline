@@ -183,13 +183,18 @@ pub async fn read_latest_commit_hash(path: web::Path<(String,)>) -> impl Respond
 }
 
 #[derive(Deserialize)]
-pub struct InitDBPayload {
+pub struct ConnectDBPayload {
     db_path: String,
     file_path: String,
 }
 
-#[post("/init")]
-pub async fn init_db(data: Json<InitDBPayload>) -> impl Responder {
+#[post("/connect")]
+pub async fn connect(data: Json<ConnectDBPayload>) -> impl Responder {
+    let already_exists = error_if_not_exists(&data.db_path).is_ok();
+    if already_exists {
+        return HttpResponse::Ok().finish();
+    }
+
     let project_id = uuid::Uuid::new_v4().to_string();
     let result = init_command::init_db(&data.db_path, &project_id, &data.file_path);
     match result {
