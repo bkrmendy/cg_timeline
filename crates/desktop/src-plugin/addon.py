@@ -48,6 +48,7 @@ def with_healthcheck(function):
     return wrapper
 
 
+@with_healthcheck
 def call_connect_api():
     file_path = get_file_path()
     db_path = get_db_path(file_path)
@@ -470,6 +471,22 @@ class RefreshOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class CheckpointsList(bpy.types.UIList):
+    """List of Checkpoints"""
+    layout_type = "DEFAULT"
+    bl_idname = "CheckpointsList"
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        row = layout.row()
+        icon = CHECKMARK_ICON if item.hash == context.scene.latest_commit_hash else BLANK_ICON
+        row.label(text=item.message, icon=icon)
+        row.operator("my.restore_operator",
+                     text="Restore").hash = item.hash
+
+    def invoke(self, context, event):
+        pass
+
+
 class TimelinePanel(bpy.types.Panel):
     bl_label = "Timeline"
     bl_idname = "TimelinePanel"
@@ -505,12 +522,8 @@ class TimelinePanel(bpy.types.Panel):
         if len(context.scene.checkpoint_items) > 0:
             restore_box = layout.box()
             restore_box.label(text="Restore checkpoint")
-            for item in context.scene.checkpoint_items:
-                row = restore_box.row()
-                icon = CHECKMARK_ICON if item.hash == context.scene.latest_commit_hash else BLANK_ICON
-                row.label(text=item.message, icon=icon)
-                row.operator("my.restore_operator",
-                             text="Restore").hash = item.hash
+            restore_box.template_list("CheckpointsList", "Restore Checkpoint",
+                                      context.scene, "checkpoint_items", context.scene, "custom_idx", rows=5)
 
         # NEW CHECKPOINT
         checkpoint_box = layout.box()
@@ -535,8 +548,10 @@ def register():
     bpy.utils.register_class(RestoreOperator)
     bpy.utils.register_class(CreateCheckpointOperator)
     bpy.utils.register_class(RefreshOperator)
+    bpy.utils.register_class(CheckpointsList)
     bpy.utils.register_class(TimelinePanel)
 
+    bpy.types.Scene.custom_idx = bpy.props.IntProperty()
     bpy.types.Scene.connected = bpy.props.BoolProperty(
         name='connected', default=False)
     bpy.types.Scene.checkpoint_items = bpy.props.CollectionProperty(
@@ -564,8 +579,10 @@ def unregister():
     bpy.utils.unregister_class(RestoreOperator)
     bpy.utils.unregister_class(CreateCheckpointOperator)
     bpy.utils.unregister_class(RefreshOperator)
+    bpy.utils.unregister_class(CheckpointsList)
     bpy.utils.unregister_class(TimelinePanel)
 
+    del bpy.types.Scene.custom_idx
     del bpy.types.Scene.connected
     del bpy.types.Scene.checkpoint_items
     del bpy.types.Scene.branch_items

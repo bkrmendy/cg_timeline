@@ -1,6 +1,6 @@
 use filetime::FileTime;
 use flate2::{write::GzEncoder, Compression};
-use rayon::{iter::plumbing::ProducerCallback, prelude::*};
+use rayon::prelude::*;
 
 use crate::{
     blend::{
