@@ -473,9 +473,10 @@ class RefreshOperator(bpy.types.Operator):
 class TimelinePanel(bpy.types.Panel):
     bl_label = "Timeline"
     bl_idname = "TimelinePanel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'Timeline'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_category = 'Workspace'
+    bl_options = {'HEADER_LAYOUT_EXPAND'}
 
     def draw(self, context):
         layout = self.layout
