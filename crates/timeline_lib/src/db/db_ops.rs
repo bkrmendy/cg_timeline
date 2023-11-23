@@ -512,7 +512,7 @@ impl DB for Persistence {
             .map_err(|_| DBError::Error("Cannot read current commit pointer".to_owned()))
             .and_then(|v| {
                 v.ok_or(DBError::Consistency(
-                    "Cannot current commit pointer not set".to_owned(),
+                    "Current commit pointer not set".to_owned(),
                 ))
             })
     }
