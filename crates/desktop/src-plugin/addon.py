@@ -170,10 +170,10 @@ def call_get_current_branch_api():
 
 
 @with_healthcheck
-def call_get_latest_commit_hash():
+def call_get_current_commit_hash():
     file_path = get_file_path()
     db_path = get_db_path(file_path)
-    url = f'{URL}/commit/latest/{quote_plus(db_path)}'
+    url = f'{URL}/commit/current/{quote_plus(db_path)}'
 
     try:
         response = requests.get(url)
@@ -215,8 +215,8 @@ def call_get_current_branch_operator():
     bpy.ops.wm.get_current_branch_operator()
 
 
-def call_call_get_latest_commit_hash_operator():
-    bpy.ops.wm.get_latest_commit_hash_operator()
+def call_call_get_current_commit_hash_operator():
+    bpy.ops.wm.get_current_commit_hash_operator()
 
 
 def call_connect_operator():
@@ -227,7 +227,7 @@ def run_onload_ops():
     call_get_current_branch_operator()
     call_list_branches_operator()
     call_list_checkpoints_operator()
-    call_call_get_latest_commit_hash_operator()
+    call_call_get_current_commit_hash_operator()
 
 
 def save_file():
@@ -333,13 +333,13 @@ class GetCurrentBranchOperator(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class GetLatestCommitHashOperator(bpy.types.Operator):
-    """Get the hash of the latest commit"""
-    bl_idname = "wm.get_latest_commit_hash_operator"
-    bl_label = "Get the hash of the latest commit"
+class GetCurrentCommitHashOperator(bpy.types.Operator):
+    """Get the hash of the current commit"""
+    bl_idname = "wm.get_current_commit_hash_operator"
+    bl_label = "Get the hash of the current commit"
 
     def execute(self, context):
-        (success, response) = call_get_latest_commit_hash()
+        (success, response) = call_get_current_commit_hash()
         if not success and response == API_NOT_AVAILABLE_ERROR:
             self.report({'ERROR'}, API_NOT_AVAILABLE_ERROR)
             return {'FINISHED'}
@@ -349,7 +349,7 @@ class GetLatestCommitHashOperator(bpy.types.Operator):
                 {'ERROR'}, f"Cannot get latest commit hash: {response}")
             return {'FINISHED'}
 
-        context.scene.latest_commit_hash = response
+        context.scene.current_commit_hash = response
 
         return {'FINISHED'}
 
@@ -448,6 +448,7 @@ class CreateCheckpointOperator(bpy.types.Operator):
             save_file()
 
             message = context.scene.commit_message
+            context.scene.commit_message = ""
             (success, response) = call_commit_api(message)
             if not success and response == API_NOT_AVAILABLE_ERROR:
                 self.report({'ERROR'}, API_NOT_AVAILABLE_ERROR)
@@ -478,13 +479,23 @@ class CheckpointsList(bpy.types.UIList):
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         row = layout.row()
-        icon = CHECKMARK_ICON if item.hash == context.scene.latest_commit_hash else BLANK_ICON
+        icon = CHECKMARK_ICON if item.hash == context.scene.current_commit_hash else BLANK_ICON
         row.label(text=item.message, icon=icon)
         row.operator("my.restore_operator",
                      text="Restore").hash = item.hash
 
-    def invoke(self, context, event):
-        pass
+
+class BranchesList(bpy.types.UIList):
+    """List of Branches"""
+    layout_type = "DEFAULT"
+    bl_idname = "BranchesList"
+
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        row = layout.row()
+        icon = CHECKMARK_ICON if item.name == context.scene.current_branch else BLANK_ICON
+        row.label(text=item.name, icon=icon)
+        row.operator("wm.switch_branch_operator",
+                     text="Switch to").name = item.name
 
 
 class TimelinePanel(bpy.types.Panel):
@@ -492,7 +503,8 @@ class TimelinePanel(bpy.types.Panel):
     bl_idname = "TimelinePanel"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_category = 'Workspace'
+    bl_context = "world"
+    bl_category = 'Timeline'
     bl_options = {'HEADER_LAYOUT_EXPAND'}
 
     def draw(self, context):
@@ -510,20 +522,15 @@ class TimelinePanel(bpy.types.Panel):
         current_branch_row.label(text="Current branch: ")
         current_branch_row.label(text=context.scene.current_branch)
 
-        for item in context.scene.branch_items:
-            row = branches_box.row()
-            icon = CHECKMARK_ICON if item.name == context.scene.current_branch else BLANK_ICON
-            row.label(text=item.name, icon=icon)
-            row.operator("wm.switch_branch_operator",
-                         text="Switch to").name = item.name
+        branches_box.template_list(BranchesList.bl_idname, "Branches",
+                                   context.scene, "branch_items", context.scene, "branch_idx", rows=5)
         branches_box.operator("wm.new_branch_operator", text="New branch")
 
         # CHECKPOINT ITEMS
-        if len(context.scene.checkpoint_items) > 0:
-            restore_box = layout.box()
-            restore_box.label(text="Restore checkpoint")
-            restore_box.template_list("CheckpointsList", "Restore Checkpoint",
-                                      context.scene, "checkpoint_items", context.scene, "custom_idx", rows=5)
+        restore_box = layout.box()
+        restore_box.label(text="Restore checkpoint")
+        restore_box.template_list(CheckpointsList.bl_idname, "Restore Checkpoint",
+                                  context.scene, "checkpoint_items", context.scene, "checkpoint_idx", rows=5)
 
         # NEW CHECKPOINT
         checkpoint_box = layout.box()
@@ -542,16 +549,18 @@ def register():
     bpy.utils.register_class(SwitchBranchesOperator)
     bpy.utils.register_class(NewBranchOperator)
     bpy.utils.register_class(GetCurrentBranchOperator)
-    bpy.utils.register_class(GetLatestCommitHashOperator)
+    bpy.utils.register_class(GetCurrentCommitHashOperator)
     bpy.utils.register_class(CheckpointItem)
     bpy.utils.register_class(BranchItem)
     bpy.utils.register_class(RestoreOperator)
     bpy.utils.register_class(CreateCheckpointOperator)
     bpy.utils.register_class(RefreshOperator)
     bpy.utils.register_class(CheckpointsList)
+    bpy.utils.register_class(BranchesList)
     bpy.utils.register_class(TimelinePanel)
 
-    bpy.types.Scene.custom_idx = bpy.props.IntProperty()
+    bpy.types.Scene.checkpoint_idx = bpy.props.IntProperty()
+    bpy.types.Scene.branch_idx = bpy.props.IntProperty()
     bpy.types.Scene.connected = bpy.props.BoolProperty(
         name='connected', default=False)
     bpy.types.Scene.checkpoint_items = bpy.props.CollectionProperty(
@@ -559,7 +568,7 @@ def register():
     bpy.types.Scene.branch_items = bpy.props.CollectionProperty(
         type=BranchItem)
     bpy.types.Scene.current_branch = bpy.props.StringProperty(name="")
-    bpy.types.Scene.latest_commit_hash = bpy.props.StringProperty(name="")
+    bpy.types.Scene.current_commit_hash = bpy.props.StringProperty(name="")
     bpy.types.Scene.commit_message = bpy.props.StringProperty(
         name="", options={'TEXTEDIT_UPDATE'})
 
@@ -573,22 +582,24 @@ def unregister():
     bpy.utils.unregister_class(SwitchBranchesOperator)
     bpy.utils.unregister_class(NewBranchOperator)
     bpy.utils.unregister_class(GetCurrentBranchOperator)
-    bpy.utils.unregister_class(GetLatestCommitHashOperator)
+    bpy.utils.unregister_class(GetCurrentCommitHashOperator)
     bpy.utils.unregister_class(CheckpointItem)
     bpy.utils.unregister_class(BranchItem)
     bpy.utils.unregister_class(RestoreOperator)
     bpy.utils.unregister_class(CreateCheckpointOperator)
     bpy.utils.unregister_class(RefreshOperator)
     bpy.utils.unregister_class(CheckpointsList)
+    bpy.utils.unregister_class(BranchesList)
     bpy.utils.unregister_class(TimelinePanel)
 
-    del bpy.types.Scene.custom_idx
+    del bpy.types.Scene.checkpoint_idx
+    del bpy.types.Scene.branch_idx
     del bpy.types.Scene.connected
     del bpy.types.Scene.checkpoint_items
     del bpy.types.Scene.branch_items
     del bpy.types.Scene.commit_message
     del bpy.types.Scene.current_branch
-    del bpy.types.Scene.latest_commit_hash
+    del bpy.types.Scene.current_commit_hash
 
 
 if __name__ == "__main__":
