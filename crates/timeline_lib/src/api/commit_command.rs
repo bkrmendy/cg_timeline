@@ -56,6 +56,8 @@ pub fn create_new_commit(
 
     conn.execute_in_transaction(|tx| {
         Persistence::write_branch_tip(tx, &current_branch_name, &blend_data.hash)?;
+        Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
+        Persistence::write_current_commit_pointer(tx, &blend_data.hash)?;
 
         let commit = Commit {
             hash: blend_data.hash,
@@ -68,9 +70,6 @@ pub fn create_new_commit(
             header: blend_data.header_bytes,
             blocks: blend_data.blocks,
         };
-
-        Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
-
         Persistence::write_commit(tx, commit)
     })?;
 

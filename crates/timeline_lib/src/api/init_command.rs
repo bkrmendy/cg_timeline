@@ -45,6 +45,7 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
     db.execute_in_transaction(|tx| {
         Persistence::write_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
         Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
+        Persistence::write_current_commit_pointer(tx, &hash)?;
         Persistence::write_current_branch_name(tx, MAIN_BRANCH_NAME)?;
         Persistence::write_project_id(tx, project_id)?;
         Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
@@ -75,6 +76,10 @@ mod test {
             .read_current_branch_name()
             .expect("Cannot read current branch name");
         assert_eq!(current_branch_name, MAIN_BRANCH_NAME);
+        let current_commit_hash = db
+            .read_current_commit_pointer()
+            .expect("Cannot read current commit pointer");
+        assert_eq!(current_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7q");
 
         let project_id = db.read_project_id().expect("Cannot read project id");
         assert_eq!(project_id, "my amazing project")
