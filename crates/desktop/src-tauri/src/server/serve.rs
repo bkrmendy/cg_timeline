@@ -2,7 +2,7 @@ use actix_web::{App, HttpServer};
 
 use super::endpoints::{
     branches, checkpoints, commit, connect, healthcheck, new_branch, read_current_branch,
-    read_latest_commit_hash, restore, switch_branch,
+    read_current_commit_hash, restore, switch_branch,
 };
 
 pub async fn serve() {
@@ -16,7 +16,7 @@ pub async fn serve() {
             .service(new_branch)
             .service(switch_branch)
             .service(read_current_branch)
-            .service(read_latest_commit_hash)
+            .service(read_current_commit_hash)
             .service(connect)
     })
     .bind(("127.0.0.1", 8080))

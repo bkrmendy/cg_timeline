@@ -168,11 +168,11 @@ pub async fn read_current_branch(path: web::Path<(String,)>) -> impl Responder {
     }
 }
 
-#[get("/commit/latest/{db_path}")]
-pub async fn read_latest_commit_hash(path: web::Path<(String,)>) -> impl Responder {
+#[get("/commit/current/{db_path}")]
+pub async fn read_current_commit_hash(path: web::Path<(String,)>) -> impl Responder {
     let (db_path,) = path.into_inner();
     let result =
-        error_if_not_exists(&db_path).and_then(|_| get_latest_commit::get_latest_commit(&db_path));
+        error_if_not_exists(&db_path).and_then(|_| get_latest_commit::get_current_commit(&db_path));
     match result {
         Ok(branch) => HttpResponse::Ok().json(branch),
         Err(err) => {
