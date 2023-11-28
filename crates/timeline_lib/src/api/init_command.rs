@@ -69,7 +69,12 @@ mod test {
     fn test_post_init_state() {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
-        init_db(tmp_path, "my amazing project", "data/untitled.blend").expect("Cannot init DB");
+        init_db(
+            tmp_path,
+            "my amazing project",
+            "data/fixtures/untitled.blend",
+        )
+        .expect("Cannot init DB");
 
         let db = Persistence::open(tmp_path).expect("Cannot open db");
         let current_branch_name = db
@@ -79,7 +84,7 @@ mod test {
         let current_commit_hash = db
             .read_current_commit_pointer()
             .expect("Cannot read current commit pointer");
-        assert_eq!(current_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7q");
+        assert_eq!(current_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
 
         let project_id = db.read_project_id().expect("Cannot read project id");
         assert_eq!(project_id, "my amazing project")

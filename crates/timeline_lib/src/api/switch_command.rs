@@ -45,10 +45,14 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_db_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(
+            tmp_db_path,
+            "my-cool-project",
+            "data/fixtures/untitled.blend",
+        );
 
         let res = switch_branches(tmp_db_path, "unknown", "void.blend");
-        assert!(matches!(res, Err(_)));
+        assert!(res.is_err());
 
         let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
 
@@ -60,7 +64,7 @@ mod test {
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
 
         // tip of main stays the same
-        assert_eq!(main_tip, "a5f92d0a988085ed66c9dcdccc7b9c90");
+        assert_eq!(main_tip, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
 
         let current_branch_name = db
             .read_current_branch_name()
@@ -73,7 +77,7 @@ mod test {
             .expect("Cannot read latest commit");
 
         // The latest commit hash stays the same
-        assert_eq!(latest_commit_hash, "a5f92d0a988085ed66c9dcdccc7b9c90");
+        assert_eq!(latest_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
     }
 
     #[test]
@@ -81,15 +85,19 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_db_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(
+            tmp_db_path,
+            "my-cool-project",
+            "data/fixtures/untitled.blend",
+        );
 
         // a commit to `main`
-        test_utils::commit(tmp_db_path, "Commit", "data/untitled_2.blend");
+        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
 
         test_utils::new_branch(tmp_db_path, "dev");
 
         // a commit to `dev`
-        test_utils::commit(tmp_db_path, "Commit 2", "data/untitled_3.blend");
+        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
         let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
 

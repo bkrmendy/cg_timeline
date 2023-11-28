@@ -464,14 +464,14 @@ mod test {
 
     #[test]
     fn test_parse_print_blend() {
-        let blend_bytes = from_file("data/untitled.blend").unwrap();
+        let blend_bytes = from_file("data/fixtures/untitled.blend").unwrap();
         let blend_m = parse_blend_manual(blend_bytes).unwrap();
         let blend_mm = blend_m.clone();
 
         assert_eq!(blend_m.header.endianness, Endianness::Little);
         assert_eq!(blend_m.header.pointer_size, PointerSize::Bits64);
         assert_eq!(blend_m.header.version, [51, 48, 51]);
-        assert_eq!(blend_m.blocks.len(), 1937);
+        assert_eq!(blend_m.blocks.len(), 2159);
 
         let mut blend_bytes_m: Vec<u8> = vec![];
         print_blend_manual(blend_m, &mut blend_bytes_m);

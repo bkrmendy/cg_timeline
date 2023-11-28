@@ -72,10 +72,14 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_db_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(
+            tmp_db_path,
+            "my-cool-project",
+            "data/fixtures/untitled.blend",
+        );
 
-        test_utils::commit(tmp_db_path, "Commit", "data/untitled_2.blend");
-        test_utils::commit(tmp_db_path, "Commit 2", "data/untitled_3.blend");
+        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
+        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
         let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
 

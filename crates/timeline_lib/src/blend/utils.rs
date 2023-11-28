@@ -34,7 +34,7 @@ pub fn from_file(path: &str) -> Result<Vec<u8>, Error> {
         let unzipped = decode_gzip(&data).or(decode_zstd(&data)).map_err(|e| {
             Error::new(
                 ErrorKind::InvalidData,
-                format!("Belnd file not correctly encoded: {:?}", e),
+                format!("Blend file not correctly encoded: {:?}", e),
             )
         })?;
 
