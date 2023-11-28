@@ -72,9 +72,6 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
     let mut last_branch_name = String::from(MAIN_BRANCH_NAME);
     let mut date: u64 = 314;
     for commit in simple_timeline.commits {
-        db.write_blocks_str(&commit.hash, &commit.blocks)
-            .expect("Cannot write blocks string");
-
         db.execute_in_transaction(|tx| {
             let this_hash = commit.hash.clone();
             let this_branch_name = commit.branch.clone();

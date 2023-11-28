@@ -15,10 +15,6 @@ pub fn import_exchange(db_path: &str, exchange: Exchange) -> Result<(), DBError>
 
     let mut db = Persistence::open(db_path)?;
 
-    for commit in &exchange.commits {
-        db.write_blocks_str(&commit.hash, &commit.blocks)?;
-    }
-
     db.execute_in_transaction(|tx| {
         Persistence::write_blocks(tx, &exchange.blocks)?;
         for commit in exchange.commits.into_iter() {

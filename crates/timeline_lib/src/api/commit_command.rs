@@ -22,7 +22,7 @@ pub fn create_new_commit(
 ) -> Result<(), DBError> {
     let mut conn = Persistence::open(db_path)?;
 
-    let file_last_mod_time = check_if_file_modified(&conn, file_path)?;
+    let file_last_mod_time: i64 = check_if_file_modified(&conn, file_path)?;
 
     let start_commit_command = Instant::now();
     let blend_data = blend_file_data_from_file(file_path)
@@ -47,8 +47,6 @@ pub fn create_new_commit(
     let project_id = conn.read_project_id()?;
 
     let name = conn.read_name()?.unwrap_or("Anon".to_owned());
-
-    conn.write_blocks_str(&blend_data.hash, &blend_data.blocks)?;
 
     conn.execute_in_transaction(|tx| {
         measure_time!(format!("Writing blocks {:?}", file_path), {
@@ -188,7 +186,8 @@ mod test {
                 .into_iter()
                 .map(|c| c.hash)
                 .collect::<Vec<String>>(),
-            vec![ // latest first
+            vec![
+                // latest first
                 "d9e8eb09f8270ad5326de946d951433a",
                 "b637ec695e10bed0ce06279d1dc46717",
                 "5bdd30ea8c1523bc75eddbcb1e59e4c7"
