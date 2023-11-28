@@ -144,9 +144,7 @@ fn read_config_inner(conn: &rusqlite::Connection, key: &str) -> Result<Option<St
 }
 
 impl DB for Persistence {
-    fn open(path: &str) -> Result<Self, DBError> {
-        let sqlite_path = Path::new(path).join("commits.sqlite");
-
+    fn open(sqlite_path: &str) -> Result<Self, DBError> {
         let sqlite_db = rusqlite::Connection::open(sqlite_path)
             .map_err(|e| DBError::Fundamental(format!("Cannot open SQLite: {:?}", e)))?;
 
