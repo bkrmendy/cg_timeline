@@ -3,7 +3,7 @@ pub mod common;
 pub mod delete_branch;
 pub mod export_descendants_of_commit;
 pub mod get_current_branch;
-pub mod get_latest_commit;
+pub mod get_current_commit;
 pub mod import_exchange;
 pub mod init_command;
 pub mod init_from_import_command;

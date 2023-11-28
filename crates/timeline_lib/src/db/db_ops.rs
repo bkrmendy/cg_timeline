@@ -28,7 +28,7 @@ impl Display for DBError {
 pub trait DB: Sized {
     fn open(path: &str) -> Result<Self, DBError>;
 
-    fn write_blocks(&self, blocks: &[BlockRecord]) -> Result<(), DBError>;
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError>;
     fn read_blocks(&self, hashes: Vec<String>) -> Result<Vec<BlockRecord>, DBError>;
 
     fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError>;
@@ -211,6 +211,16 @@ impl DB for Persistence {
 
         sqlite_db
             .execute(
+                "CREATE TABLE IF NOT EXISTS blocks (
+                    key TEXT PRIMARY KEY,
+                    value BLOB
+                )",
+                [],
+            )
+            .map_err(|e| DBError::Fundamental(format!("Cannot create config table: {:?}", e)))?;
+
+        sqlite_db
+            .execute(
                 "CREATE TABLE IF NOT EXISTS config (
                     key TEXT PRIMARY KEY,
                     value TEXT
@@ -225,10 +235,13 @@ impl DB for Persistence {
         })
     }
 
-    fn write_blocks(&self, blocks: &[BlockRecord]) -> Result<(), DBError> {
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError> {
+        let mut stmt = tx
+            .prepare("INSERT INTO blocks (key, value) VALUES (?1, ?2)")
+            .map_err(|e| DBError::Fundamental(format!("Cannot prepare query: {:?}", e)))?;
+
         for block in blocks {
-            self.rocks_db
-                .put(block_hash_key(&block.hash), &block.data)
+            stmt.execute((&block.hash, &block.data))
                 .map_err(|e| DBError::Error(format!("Cannot write block: {:?}", e)))?;
         }
 

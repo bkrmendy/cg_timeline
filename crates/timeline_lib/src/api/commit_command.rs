@@ -44,10 +44,6 @@ pub fn create_new_commit(
         }
     };
 
-    measure_time!(format!("Writing blocks {:?}", file_path), {
-        conn.write_blocks(&blocks_from_latest[..])?
-    });
-
     let project_id = conn.read_project_id()?;
 
     let name = conn.read_name()?.unwrap_or("Anon".to_owned());
@@ -55,6 +51,9 @@ pub fn create_new_commit(
     conn.write_blocks_str(&blend_data.hash, &blend_data.blocks)?;
 
     conn.execute_in_transaction(|tx| {
+        measure_time!(format!("Writing blocks {:?}", file_path), {
+            Persistence::write_blocks(tx, &blocks_from_latest[..])?
+        });
         Persistence::write_branch_tip(tx, &current_branch_name, &blend_data.hash)?;
         Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
         Persistence::write_current_commit_pointer(tx, &blend_data.hash)?;
