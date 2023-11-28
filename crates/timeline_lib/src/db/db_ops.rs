@@ -90,7 +90,6 @@ pub trait DB: Sized {
 }
 
 pub struct Persistence {
-    rocks_db: rocksdb::DB,
     sqlite_db: rusqlite::Connection,
 }
 
@@ -155,7 +154,7 @@ fn read_config_inner(conn: &rusqlite::Connection, key: &str) -> Result<Option<St
     }
 }
 
-fn get_blocks_by_hash(rocks_db: &rocksdb::DB, hash: &str) -> Result<String, DBError> {
+fn get_blocks_by_hash(conn: &rusqlite::Connection, hash: &str) -> Result<String, DBError> {
     rocks_db
         .get(working_dir_key(hash))
         .map_err(|e| DBError::Error(format!("Cannot read working dir key: {:?}", e)))?
@@ -166,10 +165,7 @@ fn get_blocks_by_hash(rocks_db: &rocksdb::DB, hash: &str) -> Result<String, DBEr
 impl DB for Persistence {
     fn open(path: &str) -> Result<Self, DBError> {
         let sqlite_path = Path::new(path).join("commits.sqlite");
-        let rocks_path = Path::new(path).join("blobs.rocks");
 
-        let rocks_db = rocksdb::DB::open_default(rocks_path)
-            .map_err(|e| DBError::Fundamental(format!("Cannot open RocksDB: {:?}", e)))?;
         let sqlite_db = rusqlite::Connection::open(sqlite_path)
             .map_err(|e| DBError::Fundamental(format!("Cannot open SQLite: {:?}", e)))?;
 
@@ -207,7 +203,9 @@ impl DB for Persistence {
                 )",
                 [],
             )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create branches table: {:?}", e)))?;
+            .map_err(|e| {
+                DBError::Fundamental(format!("Cannot create remote_branches table: {:?}", e))
+            })?;
 
         sqlite_db
             .execute(
@@ -217,7 +215,7 @@ impl DB for Persistence {
                 )",
                 [],
             )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create config table: {:?}", e)))?;
+            .map_err(|e| DBError::Fundamental(format!("Cannot create blocks table: {:?}", e)))?;
 
         sqlite_db
             .execute(
@@ -252,7 +250,8 @@ impl DB for Persistence {
         let mut result: Vec<BlockRecord> = Vec::new();
         for hash in hashes {
             let block_data = self
-                .rocks_db
+                .sqlite_db
+                .query_row(sql, params, f)
                 .get(block_hash_key(&hash))
                 .map_err(|e| DBError::Error(format!("Error reading block: {:?}", e)))?
                 .ok_or(DBError::Error("No block with hash found".to_owned()))?;
