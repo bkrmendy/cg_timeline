@@ -94,7 +94,7 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
         // Creates exactly one commit
         assert_eq!(
@@ -102,8 +102,16 @@ mod test {
             1
         );
 
+        assert_eq!(
+            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME)
+                .get(0)
+                .unwrap()
+                .hash,
+            "5bdd30ea8c1523bc75eddbcb1e59e4c7"
+        );
+
         create_new_commit(
-            "data/untitled_2.blend",
+            "data/fixtures/untitled_2.blend",
             tmp_path,
             Some("Initial checkpoint".to_owned()),
         )
@@ -129,7 +137,7 @@ mod test {
         assert_eq!(commit.branch, MAIN_BRANCH_NAME);
         assert_eq!(commit.hash, "b637ec695e10bed0ce06279d1dc46717");
         assert_eq!(commit.message, "Initial checkpoint");
-        assert_eq!(commit.prev_commit_hash, "a5f92d0a988085ed66c9dcdccc7b9c90");
+        assert_eq!(commit.prev_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
         assert_eq!(commit.project_id, "my-cool-project");
 
         let current_branch_name = db
@@ -155,16 +163,16 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
         create_new_commit(
-            "data/untitled_2.blend",
+            "data/fixtures/untitled_2.blend",
             tmp_path,
             Some("Message".to_owned()),
         )
         .unwrap();
         create_new_commit(
-            "data/untitled_3.blend",
+            "data/fixtures/untitled_3.blend",
             tmp_path,
             Some("Message".to_owned()),
         )
@@ -173,6 +181,18 @@ mod test {
         assert_eq!(
             test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME).len(),
             3
+        );
+
+        assert_eq!(
+            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME)
+                .into_iter()
+                .map(|c| c.hash)
+                .collect::<Vec<String>>(),
+            vec![ // latest first
+                "d9e8eb09f8270ad5326de946d951433a",
+                "b637ec695e10bed0ce06279d1dc46717",
+                "5bdd30ea8c1523bc75eddbcb1e59e4c7"
+            ]
         );
 
         let db = Persistence::open(tmp_path).expect("Cannot open test DB");

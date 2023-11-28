@@ -42,7 +42,11 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_db_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(
+            tmp_db_path,
+            "my-cool-project",
+            "data/fixtures/untitled.blend",
+        );
 
         create_new_branch(tmp_db_path, "dev").unwrap();
 
@@ -64,7 +68,7 @@ mod test {
             .expect("Cannot read latest commit");
 
         // the latest commit hash stays the same
-        assert_eq!(latest_commit_name, "a5f92d0a988085ed66c9dcdccc7b9c90");
+        assert_eq!(latest_commit_name, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
     }
 
     #[test]
@@ -72,15 +76,19 @@ mod test {
         let tmp_dir = TempDir::new().expect("Cannot create temp dir");
         let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
 
-        test_utils::init_db_from_file(tmp_db_path, "my-cool-project", "data/untitled.blend");
+        test_utils::init_db_from_file(
+            tmp_db_path,
+            "my-cool-project",
+            "data/fixtures/untitled.blend",
+        );
 
         // a commit to `main`
-        test_utils::commit(tmp_db_path, "Commit", "data/untitled_2.blend");
+        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
 
         create_new_branch(tmp_db_path, "dev").unwrap();
 
         // a commit to `dev`
-        test_utils::commit(tmp_db_path, "Commit 2", "data/untitled_3.blend");
+        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
         let commits = test_utils::list_checkpoints(tmp_db_path, "dev");
 
