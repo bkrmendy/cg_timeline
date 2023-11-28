@@ -28,11 +28,10 @@ impl Display for DBError {
 pub trait DB: Sized {
     fn open(path: &str) -> Result<Self, DBError>;
 
-    fn write_blocks(&self, blocks: &[BlockRecord]) -> Result<(), DBError>;
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError>;
     fn read_blocks(&self, hashes: Vec<String>) -> Result<Vec<BlockRecord>, DBError>;
 
     fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError>;
-    fn write_blocks_str(&self, hash: &str, blocks_str: &str) -> Result<(), DBError>;
     fn read_commit(&self, hash: &str) -> Result<Option<Commit>, DBError>;
 
     fn read_ancestors_of_commit(
@@ -90,23 +89,12 @@ pub trait DB: Sized {
 }
 
 pub struct Persistence {
-    rocks_db: rocksdb::DB,
     sqlite_db: rusqlite::Connection,
 }
 
 #[inline]
-fn block_hash_key(key: &str) -> String {
-    format!("block-hash-{:?}", key)
-}
-
-#[inline]
-fn working_dir_key(key: &str) -> String {
-    format!("working-dir-{:?}", key)
-}
-
-#[inline]
 fn last_mod_time_key() -> String {
-    format!("LAST_MOD_TIME")
+    "LAST_MOD_TIME".to_string()
 }
 
 #[inline]
@@ -155,21 +143,10 @@ fn read_config_inner(conn: &rusqlite::Connection, key: &str) -> Result<Option<St
     }
 }
 
-fn get_blocks_by_hash(rocks_db: &rocksdb::DB, hash: &str) -> Result<String, DBError> {
-    rocks_db
-        .get(working_dir_key(hash))
-        .map_err(|e| DBError::Error(format!("Cannot read working dir key: {:?}", e)))?
-        .map(|bs| String::from_utf8(bs).unwrap())
-        .ok_or(DBError::Consistency("No working dir found".to_owned()))
-}
-
 impl DB for Persistence {
     fn open(path: &str) -> Result<Self, DBError> {
         let sqlite_path = Path::new(path).join("commits.sqlite");
-        let rocks_path = Path::new(path).join("blobs.rocks");
 
-        let rocks_db = rocksdb::DB::open_default(rocks_path)
-            .map_err(|e| DBError::Fundamental(format!("Cannot open RocksDB: {:?}", e)))?;
         let sqlite_db = rusqlite::Connection::open(sqlite_path)
             .map_err(|e| DBError::Fundamental(format!("Cannot open SQLite: {:?}", e)))?;
 
@@ -183,7 +160,8 @@ impl DB for Persistence {
                     message TEXT,
                     author TEXT,
                     date INTEGER,
-                    header BLOB
+                    header BLOB,
+                    blocks TEXT
                 )",
                 [],
             )
@@ -207,7 +185,19 @@ impl DB for Persistence {
                 )",
                 [],
             )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create branches table: {:?}", e)))?;
+            .map_err(|e| {
+                DBError::Fundamental(format!("Cannot create remote_branches table: {:?}", e))
+            })?;
+
+        sqlite_db
+            .execute(
+                "CREATE TABLE IF NOT EXISTS blocks (
+                    key TEXT PRIMARY KEY,
+                    value BLOB
+                )",
+                [],
+            )
+            .map_err(|e| DBError::Fundamental(format!("Cannot create blocks table: {:?}", e)))?;
 
         sqlite_db
             .execute(
@@ -219,16 +209,16 @@ impl DB for Persistence {
             )
             .map_err(|e| DBError::Fundamental(format!("Cannot create config table: {:?}", e)))?;
 
-        Ok(Self {
-            rocks_db,
-            sqlite_db,
-        })
+        Ok(Self { sqlite_db })
     }
 
-    fn write_blocks(&self, blocks: &[BlockRecord]) -> Result<(), DBError> {
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError> {
+        let mut stmt = tx
+            .prepare("INSERT INTO blocks (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO NOTHING")
+            .map_err(|e| DBError::Fundamental(format!("Cannot prepare query: {:?}", e)))?;
+
         for block in blocks {
-            self.rocks_db
-                .put(block_hash_key(&block.hash), &block.data)
+            stmt.execute((&block.hash, &block.data))
                 .map_err(|e| DBError::Error(format!("Cannot write block: {:?}", e)))?;
         }
 
@@ -239,8 +229,10 @@ impl DB for Persistence {
         let mut result: Vec<BlockRecord> = Vec::new();
         for hash in hashes {
             let block_data = self
-                .rocks_db
-                .get(block_hash_key(&hash))
+                .sqlite_db
+                .query_row("SELECT value FROM blocks WHERE key = ?1", [&hash], |row| {
+                    Ok(Some(row.get(0).expect("No value in row")))
+                })
                 .map_err(|e| DBError::Error(format!("Error reading block: {:?}", e)))?
                 .ok_or(DBError::Error("No block with hash found".to_owned()))?;
 
@@ -253,15 +245,9 @@ impl DB for Persistence {
         Ok(result)
     }
 
-    fn write_blocks_str(&self, hash: &str, blocks_str: &str) -> Result<(), DBError> {
-        self.rocks_db
-            .put(working_dir_key(hash), blocks_str)
-            .map_err(|_| DBError::Error("Cannot write working dir blocks".to_owned()))
-    }
-
     fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError> {
         tx.execute(
-            "INSERT INTO commits (hash, prev_commit_hash, project_id, branch, message, author, date, header) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO commits (hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             (
                 commit.hash,
                 commit.prev_commit_hash,
@@ -271,6 +257,7 @@ impl DB for Persistence {
                 commit.author,
                 commit.date,
                 commit.header,
+                commit.blocks
             ),
         )
         .map_err(|e| DBError::Error(format!("Cannot insert commit object: {:?}", e)))?;
@@ -279,14 +266,7 @@ impl DB for Persistence {
     }
 
     fn read_commit(&self, hash: &str) -> Result<Option<Commit>, DBError> {
-        let blocks = self
-            .rocks_db
-            .get(working_dir_key(hash))
-            .map_err(|e| DBError::Error(format!("Cannot read working dir key: {:?}", e)))?
-            .map(|bs| String::from_utf8(bs).unwrap())
-            .ok_or(DBError::Consistency("No working dir found".to_owned()))?;
-
-        self.sqlite_db.query_row("SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header FROM commits WHERE hash = ?1", [hash], |row| Ok(Some(Commit {
+        self.sqlite_db.query_row("SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks FROM commits WHERE hash = ?1", [hash], |row| Ok(Some(Commit {
             hash: row.get(0).expect("No hash found in row"),
             prev_commit_hash: row.get(1).expect("No prev_commit_hash found in row"),
             project_id: row.get(2).expect("No project_id found in row"),
@@ -295,7 +275,7 @@ impl DB for Persistence {
             author: row.get(5).expect("No author found in row"),
             date: row.get(6).expect("No date found in row"),
             header: row.get(7).expect("No header found in row"),
-            blocks,
+            blocks: row.get(8).expect("No blocks found in row")
         }))).map_err(|e| DBError::Error(format!("Cannot read commit: {:?}", e)))
     }
 
@@ -341,13 +321,13 @@ impl DB for Persistence {
             .sqlite_db
             .prepare(
                 "
-                WITH RECURSIVE ancestor_commits(hash, prev_commit_hash, project_id, branch, message, author, date, header) AS (
-                    SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header FROM commits WHERE hash = ?1
+                WITH RECURSIVE descendant_commits(hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks) AS (
+                    SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks FROM commits WHERE hash = ?1
                     UNION ALL
-                    SELECT c.hash, c.prev_commit_hash, c.project_id, c.branch, c.message, c.author, c.date, c.header FROM commits c
-                    JOIN ancestor_commits a ON c.prev_commit_hash = a.hash
+                    SELECT c.hash, c.prev_commit_hash, c.project_id, c.branch, c.message, c.author, c.date, c.header, c.blocks FROM commits c
+                    JOIN descendant_commits a ON c.prev_commit_hash = a.hash
                 )
-                SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header FROM ancestor_commits ORDER BY date ASC;
+                SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks FROM descendant_commits ORDER BY date ASC;
                 ",
             )
             .map_err(|e| {
@@ -366,8 +346,6 @@ impl DB for Persistence {
                 .expect("No hash found in row")
                 .to_string();
 
-            let blocks = get_blocks_by_hash(&self.rocks_db, &hash)?;
-
             result.push(Commit {
                 hash,
                 prev_commit_hash: data.get(1).expect("No prev_commit_hash found in row"),
@@ -377,7 +355,7 @@ impl DB for Persistence {
                 author: data.get(5).expect("No author found in row"),
                 date: data.get(6).expect("No date found in row"),
                 header: data.get(7).expect("No header found in row"),
-                blocks,
+                blocks: data.get(8).expect("No blocks found in row"),
             })
         }
 
@@ -638,13 +616,6 @@ mod tests {
            \
               a - b
         */
-        db.write_blocks_str("1", "aaa").unwrap();
-        db.write_blocks_str("2", "bbb").unwrap();
-        db.write_blocks_str("3", "ccc").unwrap();
-        db.write_blocks_str("4", "ddd").unwrap();
-        db.write_blocks_str("a", "eee").unwrap();
-        db.write_blocks_str("b", "fff").unwrap();
-        db.write_blocks_str("x", "xxx").unwrap();
         db.execute_in_transaction(|tx| {
             Persistence::write_commit(
                 tx,

@@ -43,7 +43,7 @@ pub fn check_if_file_modified(db: &Persistence, file_path: &str) -> Result<i64, 
 
     let last_mod_time_from_db = last_mod_time_from_db.unwrap();
 
-    if last_mod_time_from_db < last_mod_time_from_file {
+    if last_mod_time_from_db <= last_mod_time_from_file {
         return Ok(last_mod_time_from_file);
     }
 

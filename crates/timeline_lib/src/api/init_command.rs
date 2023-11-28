@@ -1,6 +1,9 @@
-use crate::db::{
-    db_ops::{DBError, Persistence, DB},
-    structs::Commit,
+use crate::{
+    db::{
+        db_ops::{DBError, Persistence, DB},
+        structs::Commit,
+    },
+    measure_time,
 };
 
 use super::common::{blend_file_data_from_file, get_file_mod_time};
@@ -19,10 +22,6 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
     let name = db.read_name()?.unwrap_or("Anon".to_owned());
 
     let hash = blend_data.hash.clone();
-
-    db.write_blocks_str(&blend_data.hash, &blend_data.blocks)?;
-
-    db.write_blocks(&blend_data.block_data)?;
 
     db.execute_in_transaction(|tx| {
         Persistence::write_branch_tip(tx, MAIN_BRANCH_NAME, &blend_data.hash)?;
@@ -43,6 +42,9 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
     })?;
 
     db.execute_in_transaction(|tx| {
+        measure_time!(format!("Writing blocks {:?}", path_to_blend), {
+            Persistence::write_blocks(tx, &blend_data.block_data)?;
+        });
         Persistence::write_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
         Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
         Persistence::write_current_commit_pointer(tx, &hash)?;

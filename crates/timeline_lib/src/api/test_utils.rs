@@ -68,16 +68,10 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
         })
         .collect();
 
-    db.write_blocks(&block_records)
-        .expect("cannot write blocks");
-
     let mut last_commit_hash = String::from(INITIAL_COMMIT_HASH);
     let mut last_branch_name = String::from(MAIN_BRANCH_NAME);
     let mut date: u64 = 314;
     for commit in simple_timeline.commits {
-        db.write_blocks_str(&commit.hash, &commit.blocks)
-            .expect("Cannot write blocks string");
-
         db.execute_in_transaction(|tx| {
             let this_hash = commit.hash.clone();
             let this_branch_name = commit.branch.clone();
@@ -111,6 +105,7 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
     }
 
     db.execute_in_transaction(|tx| {
+        Persistence::write_blocks(tx, &block_records).expect("cannot write blocks");
         Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &last_commit_hash)?;
         Persistence::write_project_id(tx, &simple_timeline.project_id)?;
         Ok(())
