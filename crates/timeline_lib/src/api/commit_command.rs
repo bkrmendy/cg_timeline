@@ -76,7 +76,7 @@ pub fn create_new_commit(
 
 #[cfg(test)]
 mod test {
-    use tempfile::TempDir;
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::{
@@ -89,8 +89,8 @@ mod test {
 
     #[test]
     fn test_initial_commit() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
@@ -158,8 +158,8 @@ mod test {
 
     #[test]
     fn test_next_commit() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 

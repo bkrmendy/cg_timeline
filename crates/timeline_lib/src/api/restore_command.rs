@@ -58,7 +58,7 @@ pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<
 
 #[cfg(test)]
 mod test {
-    use tempfile::{NamedTempFile, TempDir};
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::{init_command::MAIN_BRANCH_NAME, test_utils},
@@ -69,34 +69,30 @@ mod test {
 
     #[test]
     fn test_restore() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
-        test_utils::init_db_from_file(
-            tmp_db_path,
-            "my-cool-project",
-            "data/fixtures/untitled.blend",
-        );
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
-        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
-        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
+        test_utils::commit(tmp_path, "Commit", "data/fixtures/untitled_2.blend");
+        test_utils::commit(tmp_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
         let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
 
         restore_checkpoint(
             tmp_blend_path.path().to_str().unwrap(),
-            tmp_db_path,
+            tmp_path,
             "b637ec695e10bed0ce06279d1dc46717",
         )
         .expect("Cannot restore checkpoint");
 
         // Number of commits stays the same
         assert_eq!(
-            test_utils::list_checkpoints(tmp_db_path, MAIN_BRANCH_NAME).len(),
+            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME).len(),
             3
         );
 
-        let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
+        let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         let current_branch_name = db
             .read_current_branch_name()

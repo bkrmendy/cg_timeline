@@ -591,7 +591,7 @@ impl DB for Persistence {
 
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
+    use tempfile::NamedTempFile;
 
     use crate::api::{
         init_command::{INITIAL_COMMIT_HASH, MAIN_BRANCH_NAME},
@@ -602,8 +602,8 @@ mod tests {
 
     #[test]
     fn test_read_descendants_of_commit() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         let mut db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
@@ -784,8 +784,8 @@ mod tests {
 
     #[test]
     fn test_delete_branch_with_commits() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         /*
           alt1           x

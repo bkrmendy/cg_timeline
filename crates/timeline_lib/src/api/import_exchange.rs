@@ -53,7 +53,8 @@ test
 
 #[cfg(test)]
 mod test {
-    use tempfile::TempDir;
+
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::{
@@ -71,8 +72,8 @@ mod test {
 
     #[test]
     fn test_import_exchange() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         /*
         Start:
@@ -87,7 +88,7 @@ mod test {
         */
 
         init_db_from_simple_timeline(
-            tmp_db_path,
+            tmp_path,
             SimpleTimeline {
                 project_id: String::from("a"),
                 author: "test".to_owned(),
@@ -198,8 +199,8 @@ mod test {
             ],
         };
 
-        import_exchange(tmp_db_path, exchange).expect("Cannot import exchange");
-        let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
+        import_exchange(tmp_path, exchange).expect("Cannot import exchange");
+        let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         let all_commits = db
             .read_descendants_of_commit("1")

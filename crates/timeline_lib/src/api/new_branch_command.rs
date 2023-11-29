@@ -28,7 +28,8 @@ pub fn create_new_branch(db_path: &str, new_branch_name: &str) -> Result<(), DBE
 
 #[cfg(test)]
 mod test {
-    use tempfile::TempDir;
+
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::{common::read_latest_commit_hash_on_branch, test_utils},
@@ -39,20 +40,16 @@ mod test {
 
     #[test]
     fn test_create_new_branch() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
-        test_utils::init_db_from_file(
-            tmp_db_path,
-            "my-cool-project",
-            "data/fixtures/untitled.blend",
-        );
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
-        create_new_branch(tmp_db_path, "dev").unwrap();
+        create_new_branch(tmp_path, "dev").unwrap();
 
-        assert_eq!(test_utils::list_checkpoints(tmp_db_path, "dev").len(), 1);
+        assert_eq!(test_utils::list_checkpoints(tmp_path, "dev").len(), 1);
 
-        let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
+        let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         let current_branch_name = db
             .read_current_branch_name()
@@ -73,24 +70,20 @@ mod test {
 
     #[test]
     fn test_commit_to_new_branch() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
-        test_utils::init_db_from_file(
-            tmp_db_path,
-            "my-cool-project",
-            "data/fixtures/untitled.blend",
-        );
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
         // a commit to `main`
-        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
+        test_utils::commit(tmp_path, "Commit", "data/fixtures/untitled_2.blend");
 
-        create_new_branch(tmp_db_path, "dev").unwrap();
+        create_new_branch(tmp_path, "dev").unwrap();
 
         // a commit to `dev`
-        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
+        test_utils::commit(tmp_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
-        let commits = test_utils::list_checkpoints(tmp_db_path, "dev");
+        let commits = test_utils::list_checkpoints(tmp_path, "dev");
 
         assert_eq!(commits.len(), 3);
 

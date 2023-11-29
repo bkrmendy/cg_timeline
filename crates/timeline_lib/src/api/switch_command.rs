@@ -29,7 +29,7 @@ pub fn switch_branches(db_path: &str, branch_name: &str, file_path: &str) -> Res
 
 #[cfg(test)]
 mod test {
-    use tempfile::{NamedTempFile, TempDir};
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::{
@@ -42,19 +42,15 @@ mod test {
 
     #[test]
     fn test_checkout_non_existent_branch() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
-        test_utils::init_db_from_file(
-            tmp_db_path,
-            "my-cool-project",
-            "data/fixtures/untitled.blend",
-        );
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
-        let res = switch_branches(tmp_db_path, "unknown", "void.blend");
+        let res = switch_branches(tmp_path, "unknown", "void.blend");
         assert!(res.is_err());
 
-        let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
+        let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         let branches = db.read_all_branches().unwrap();
 
@@ -82,33 +78,29 @@ mod test {
 
     #[test]
     fn test_checkout_real_branch() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_db_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path: &str = tmp_file.path().to_str().expect("Cannot get temp file path");
 
-        test_utils::init_db_from_file(
-            tmp_db_path,
-            "my-cool-project",
-            "data/fixtures/untitled.blend",
-        );
+        test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
 
         // a commit to `main`
-        test_utils::commit(tmp_db_path, "Commit", "data/fixtures/untitled_2.blend");
+        test_utils::commit(tmp_path, "Commit", "data/fixtures/untitled_2.blend");
 
-        test_utils::new_branch(tmp_db_path, "dev");
+        test_utils::new_branch(tmp_path, "dev");
 
         // a commit to `dev`
-        test_utils::commit(tmp_db_path, "Commit 2", "data/fixtures/untitled_3.blend");
+        test_utils::commit(tmp_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
         let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
 
         switch_branches(
-            tmp_db_path,
+            tmp_path,
             MAIN_BRANCH_NAME,
             tmp_blend_path.path().to_str().unwrap(),
         )
         .expect("Cannot switch branches");
 
-        let db = Persistence::open(tmp_db_path).expect("Cannot open test DB");
+        let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         // current branch name is set to the checked out branch
         let current_branch_name = db.read_current_branch_name().unwrap();

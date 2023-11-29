@@ -58,7 +58,8 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
 
 #[cfg(test)]
 mod test {
-    use tempfile::TempDir;
+
+    use tempfile::NamedTempFile;
 
     use crate::{
         api::init_command::MAIN_BRANCH_NAME,
@@ -69,8 +70,8 @@ mod test {
 
     #[test]
     fn test_post_init_state() {
-        let tmp_dir = TempDir::new().expect("Cannot create temp dir");
-        let tmp_path = tmp_dir.path().to_str().expect("Cannot get temp dir path");
+        let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
+        let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
         init_db(
             tmp_path,
             "my amazing project",
