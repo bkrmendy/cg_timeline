@@ -245,10 +245,7 @@ fn parse_padding_zeros(data: &[u8]) -> BlendFileParseResult<&[u8]> {
     Ok((&data[0..padding_end], &data[padding_end..]))
 }
 
-fn get_byte_vec(data: &[u8], count: u32) -> BlendFileParseResult<Vec<u8>> {
-    let count: usize = count
-        .try_into()
-        .map_err(|_| BlendFileParseError::UnexpectedEndOfInput)?;
+fn get_byte_vec(data: &[u8], count: usize) -> BlendFileParseResult<Vec<u8>> {
     if data.len() < count {
         return Err(BlendFileParseError::UnexpectedEndOfInput);
     }
@@ -324,6 +321,14 @@ fn print_u32(value: u32, endianness: Endianness, out: &mut Vec<u8>) {
     out.extend(bytes)
 }
 
+fn print_i32(value: i32, endianness: Endianness, out: &mut Vec<u8>) {
+    let bytes = match endianness {
+        Endianness::Little => value.to_le_bytes(),
+        Endianness::Big => value.to_be_bytes(),
+    };
+    out.extend(bytes)
+}
+
 fn print_u64(value: u64, endianness: Endianness, out: &mut Vec<u8>) {
     let bytes = match endianness {
         Endianness::Little => value.to_le_bytes(),
@@ -338,7 +343,7 @@ pub fn parse_block_manual(
     endianness: Endianness,
 ) -> BlendFileParseResult<SimpleParsedBlock> {
     let (code, blend_data) = get_bytes::<4>(blend_data)?;
-    let (size, blend_data) = parse_u32(blend_data, endianness)?;
+    let (size, blend_data) = parse_i32(blend_data, endianness)?;
     let (memory_address, blend_data) = match pointer_size {
         PointerSize::Bits32 => {
             parse_u32(blend_data, endianness).map(|res| lmap(res, Either::Left))?
@@ -350,7 +355,7 @@ pub fn parse_block_manual(
 
     let (dna_index, blend_data) = parse_u32(blend_data, endianness)?;
     let (count, blend_data) = parse_u32(blend_data, endianness)?;
-    let (data, blend_data) = get_byte_vec(blend_data, size)?;
+    let (data, blend_data) = get_byte_vec(blend_data, size as usize)?;
 
     Ok((
         SimpleParsedBlock {
@@ -396,7 +401,7 @@ pub fn parse_sdna(data: &[u8], endianness: Endianness) -> BlendFileParseResult<D
     let (_, data) = parse_padding_zeros(data)?;
 
     let ((), data) = get_tag::<4>(data, *b"TLEN")?;
-    let (type_lengths, data) = multi(data, types_len, |d| parse_u16(d, endianness))?;
+    let (type_lengths, data) = multi(data, types_len, |d| parse_i16(d, endianness))?;
 
     let (_, data) = parse_padding_zeros(data)?;
 
@@ -417,7 +422,7 @@ pub fn parse_sdna(data: &[u8], endianness: Endianness) -> BlendFileParseResult<D
 
 pub fn print_block_manual(block: SimpleParsedBlock, endianness: Endianness, out: &mut Vec<u8>) {
     out.extend(block.code);
-    print_u32(block.size, endianness, out);
+    print_i32(block.size, endianness, out);
     match block.memory_address {
         Either::Left(mem) => print_u32(mem, endianness, out),
         Either::Right(mem) => print_u64(mem, endianness, out),
