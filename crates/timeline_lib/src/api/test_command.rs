@@ -86,7 +86,12 @@ fn parse_block_contents(block: SimpleParsedBlock, sdna_info: &DNAInfo) -> BlockW
             FieldType::FnPointer => 8_usize, // TODO: pointer size
             FieldType::Pointer { .. } if type_name == "DrawData" => {
                 let size = block.size as usize - offset;
-                println!("{} {size} {type_name} {name} {:?}", block.size, field_type);
+                println!(
+                    "{:?} {size} {} {name} {:?}",
+                    String::from_utf8(block.code.to_vec()).unwrap(),
+                    block.dna_index,
+                    field_type
+                );
                 size
             }
             FieldType::Pointer { .. } => 8_usize,
