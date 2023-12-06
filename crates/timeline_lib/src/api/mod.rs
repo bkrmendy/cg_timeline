@@ -16,5 +16,3 @@ pub mod switch_command;
 pub mod test_command;
 pub mod test_utils;
 pub mod utils;
-
-mod invariants;

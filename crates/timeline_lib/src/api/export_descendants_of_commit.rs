@@ -5,7 +5,7 @@ use crate::{
     exchange::structs::Exchange,
 };
 
-use super::common::parse_hash_list;
+use super::common::parse_blocks_and_pointers;
 
 pub fn export_descendants_of_commit(
     db_path: &str,
@@ -16,7 +16,11 @@ pub fn export_descendants_of_commit(
     let mut block_hashes: HashSet<String> = HashSet::new();
 
     for commit in commits.iter() {
-        let blocks_of_this_commit = parse_hash_list(commit.blocks.clone());
+        let blocks_of_this_commit: Vec<String> =
+            parse_blocks_and_pointers(&commit.blocks_and_pointers)
+                .into_iter()
+                .map(|b| b.hash)
+                .collect();
 
         for block in blocks_of_this_commit.into_iter() {
             if !block_hashes.contains(&block) {

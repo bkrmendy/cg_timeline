@@ -111,16 +111,14 @@ pub struct RawBlend {
 }
 
 #[derive(Debug, Clone)]
-pub struct GenericBlock<T> {
+pub struct SimpleParsedBlock {
     pub code: [u8; 4],
     pub size: i32,
     pub memory_address: Either<u32, u64>,
     pub dna_index: u32,
     pub count: u32,
-    pub data: T,
+    pub data: Vec<u8>,
 }
-
-pub type SimpleParsedBlock = GenericBlock<Vec<u8>>;
 
 #[derive(Debug, Clone)]
 pub struct ParsedField {
@@ -128,8 +126,6 @@ pub struct ParsedField {
     pub points_to: Option<u64>,
     pub data_for_field: Vec<u8>,
 }
-
-pub type BlockWithParsedFields = GenericBlock<Vec<ParsedField>>;
 
 #[derive(Debug)]
 pub struct DNAField {

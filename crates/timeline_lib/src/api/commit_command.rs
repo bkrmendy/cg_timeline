@@ -1,7 +1,7 @@
 use crate::{
     api::{
         common::{
-            blend_file_data_from_file, check_if_file_modified, parse_hash_list,
+            blend_file_data_from_file, check_if_file_modified, parse_blocks_and_pointers,
             read_latest_commit_hash_on_branch,
         },
         utils::block_hash_diff,
@@ -39,10 +39,15 @@ pub fn create_new_commit(
     let blocks_from_latest = match latest_commit {
         None => blend_data.block_data,
         Some(commit) => {
-            let hashes = parse_hash_list(commit.blocks);
+            let hashes = parse_blocks_and_pointers(&commit.blocks_and_pointers)
+                .into_iter()
+                .map(|b| b.hash)
+                .collect();
             block_hash_diff(hashes, blend_data.block_data)
         }
     };
+
+    println!("Number of blocks from latest: {}", blocks_from_latest.len());
 
     let project_id = conn.read_project_id()?;
 
@@ -65,7 +70,7 @@ pub fn create_new_commit(
             author: name,
             date: file_last_mod_time as u64,
             header: blend_data.header_bytes,
-            blocks: blend_data.blocks,
+            blocks_and_pointers: blend_data.blocks_and_pointers_bytes,
         };
         Persistence::write_commit(tx, commit)
     })?;

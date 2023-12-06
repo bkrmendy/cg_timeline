@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::Serialize;
 use timeline_lib::{
-    api::common::parse_hash_list,
+    api::common::parse_blocks_and_pointers,
     db::structs::{BlockRecord, Commit},
     exchange::structs::{decode_sync, encode_exchange, Exchange},
 };
@@ -24,12 +24,12 @@ fn prepare_exchange_response(db: &DB, local_tips: Vec<String>) -> Result<Exchang
         let commits = read_descendants_of_commit(db, &hash)?;
 
         for commit in commits.into_iter() {
-            let blocks_of_this_commit = parse_hash_list(commit.blocks.clone());
+            let blocks_of_this_commit = parse_blocks_and_pointers(&commit.blocks_and_pointers);
 
             all_commits.push(commit);
 
             for block in blocks_of_this_commit.into_iter() {
-                block_hashes.insert(block);
+                block_hashes.insert(block.hash);
             }
         }
     }

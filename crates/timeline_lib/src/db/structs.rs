@@ -16,5 +16,5 @@ pub struct Commit {
     pub author: String,
     pub date: u64,
     pub header: Vec<u8>,
-    pub blocks: String,
+    pub blocks_and_pointers: Vec<u8>,
 }

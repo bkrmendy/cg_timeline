@@ -92,7 +92,7 @@ pub fn read_blocks(db: &DB, hashes: Vec<String>) -> Result<Vec<BlockRecord>, Ser
 pub fn write_commits(db: &DB, commits: Vec<Commit>) -> Result<(), ServerDBError> {
     for commit in commits {
         db.kv
-            .put(working_dir_key(&commit.hash), commit.blocks)
+            .put(working_dir_key(&commit.hash), commit.blocks_and_pointers)
             .map_err(|_| ServerDBError::Error("Cannot write working dir blocks".to_owned()))?;
 
         let hash = commit.hash.clone();
@@ -174,7 +174,7 @@ pub fn read_descendants_of_commit(db: &DB, hash: &str) -> Result<Vec<Commit>, Se
             author: data.get(5).expect("No author found in row"),
             date: data.get(6).expect("No date found in row"),
             header: data.get(7).expect("No header found in row"),
-            blocks,
+            blocks_and_pointers: data.get(8).expect("No blocks_and_pointers found in row"),
         })
     }
 
@@ -215,7 +215,7 @@ pub fn read_commits_with_project_id(
             author: data.get(5).expect("No author found in row"),
             date: data.get(6).expect("No date found in row"),
             header: data.get(7).expect("No header found in row"),
-            blocks,
+            blocks_and_pointers: data.get(8).expect("No blocks_and_pointers found in row"),
         })
     }
 

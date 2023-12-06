@@ -35,7 +35,7 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
             author: name,
             date: file_last_mod_time as u64,
             header: blend_data.header_bytes,
-            blocks: blend_data.blocks,
+            blocks_and_pointers: blend_data.blocks_and_pointers_bytes,
         };
 
         Persistence::write_commit(tx, commit)

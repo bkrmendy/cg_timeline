@@ -1,11 +1,20 @@
-use std::{io::Write, time::Instant};
+use std::{io::Write, iter::zip, time::Instant};
 
 use flate2::write::GzDecoder;
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use rayon::{
+    iter::IndexedParallelIterator,
+    prelude::{IntoParallelRefIterator, ParallelIterator},
+};
 
 use crate::{
-    api::common::parse_hash_list,
-    blend::utils::to_file_transactional,
+    api::common::parse_blocks_and_pointers,
+    blend::{
+        parse_print_blend::{
+            parse_block_manual, parse_header_manual, print_blend, BlendFileWithPointerData,
+            BlockContentWithPointers,
+        },
+        utils::to_file_transactional,
+    },
     db::db_ops::{DBError, Persistence, DB},
     measure_time,
 };
@@ -20,28 +29,49 @@ pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<
             .ok_or(DBError::Consistency("no such commit found".to_owned()))
     })?;
 
-    let block_hashes = measure_time!(format!("Reading blocks {:?}", hash), {
-        parse_hash_list(commit.blocks)
+    let block_meta = measure_time!(format!("Reading blocks {:?}", hash), {
+        parse_blocks_and_pointers(&commit.blocks_and_pointers)
     });
 
-    let header = commit.header;
+    let header_data = commit.header;
+    let (header, _) = parse_header_manual(&header_data).unwrap();
 
-    let block_data: Vec<Vec<u8>> = measure_time!(format!("Decompressing blocks {:?}", hash), {
-        conn.read_blocks(block_hashes)
-            .map_err(|_| DBError::Error("Cannot read block hashes".to_owned()))?
-            .par_iter()
-            .map(|record| {
-                let mut writer = Vec::new();
-                let mut deflater = GzDecoder::new(writer);
-                deflater.write_all(&record.data).unwrap();
-                writer = deflater.finish().unwrap();
-                writer
-            })
-            .collect()
-    });
+    let blocks: Vec<BlockContentWithPointers> =
+        measure_time!(format!("Decompressing blocks {:?}", hash), {
+            let block_hashes = block_meta.iter().map(|b| b.hash.clone()).collect();
+
+            let blocks_minus_pointers: Vec<Vec<u8>> = conn
+                .read_blocks(block_hashes)
+                .map_err(|_| DBError::Error("Cannot read block hashes".to_owned()))?
+                .par_iter()
+                .map(|record| {
+                    let mut writer = Vec::new();
+                    let mut deflater = GzDecoder::new(writer);
+                    deflater.write_all(&record.data).unwrap();
+                    writer = deflater.finish().unwrap();
+                    writer
+                })
+                .collect();
+
+            zip(block_meta, blocks_minus_pointers)
+                .map(|(meta, data)| {
+                    let (simple_block, _) =
+                        parse_block_manual(&data, header.pointer_size, header.endianness).unwrap();
+
+                    BlockContentWithPointers {
+                        simple_block,
+                        original_mem_address: meta.original_mem_address,
+                        pointers: meta.pointers,
+                    }
+                })
+                .collect()
+        });
+
+    let mut out: Vec<u8> = vec![];
+    print_blend(BlendFileWithPointerData { header, blocks }, &mut out);
 
     measure_time!(format!("Writing file {:?}", hash), {
-        to_file_transactional(file_path, header, block_data, b"ENDB".to_vec())
+        to_file_transactional(file_path, out, b"ENDB".to_vec())
             .map_err(|_| DBError::Fundamental("Cannot write to file".to_owned()))?;
     });
 

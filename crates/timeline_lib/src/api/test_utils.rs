@@ -92,7 +92,7 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
                     author: simple_timeline.author.clone(),
                     date,
                     header: vec![1, 2, 3],
-                    blocks: commit.blocks,
+                    blocks_and_pointers: vec![] // commit.blocks,
                 },
             )
             .expect("cannot write commits");
