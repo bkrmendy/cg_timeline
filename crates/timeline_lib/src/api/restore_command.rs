@@ -1,10 +1,7 @@
 use std::{io::Write, iter::zip, time::Instant};
 
 use flate2::write::GzDecoder;
-use rayon::{
-    iter::IndexedParallelIterator,
-    prelude::{IntoParallelRefIterator, ParallelIterator},
-};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     api::common::parse_blocks_and_pointers,

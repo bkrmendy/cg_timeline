@@ -1,7 +1,7 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
 use rayon::iter::{
-    IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+    IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
 use regex::Regex;
 
@@ -364,15 +364,13 @@ enum FieldType {
     FnPointer,
 }
 
-fn parse_field_type(name: &str) -> FieldType {
+fn parse_field_type(name: &str, re: &Regex) -> FieldType {
     if name.starts_with('*') || name.starts_with("**") {
         return FieldType::Pointer;
     }
     if name.starts_with("(*") {
         return FieldType::FnPointer;
     }
-
-    let re = Regex::new(r"\[(\d+)\]").unwrap();
 
     if name.contains('[') {
         let counts = re
@@ -399,8 +397,9 @@ pub struct BlockContentWithPointers {
 
 pub fn parse_block_contents(
     block: SimpleParsedBlock,
-    sdna_info: &DNAInfo,
+    pointer_size: PointerSize,
     endianness: Endianness,
+    field_meta_lookup: &FieldMetaLookup,
 ) -> BlockContentWithPointers {
     let original_mem_address = block.memory_address;
 
@@ -411,72 +410,53 @@ pub fn parse_block_contents(
             pointers: vec![],
         };
     }
-    let fields_meta = &sdna_info.structs[block.dna_index as usize].fields;
 
-    let mut offset: usize = 0;
     let mut pointers: OffsetsWithPointerValue = vec![];
+    let fields = field_meta_lookup.get(&block.dna_index);
+    if fields.is_none() {
+        return BlockContentWithPointers {
+            simple_block: block,
+            original_mem_address,
+            pointers,
+        };
+    }
+    let fields = fields.unwrap();
 
-    let ptr_size = match block.memory_address {
-        Either::Left(_) => 4,
-        Either::Right(_) => 8,
+    let ptr_size = match pointer_size {
+        PointerSize::Bits32 => 4,
+        PointerSize::Bits64 => 8,
     };
 
-    for field in fields_meta {
-        let name = sdna_info.names[field.name_idx as usize].clone();
-        let type_name = &sdna_info.types[field.type_idx as usize];
-        let field_type = parse_field_type(&name);
-        let size_from_sdna = sdna_info.type_lengths[field.type_idx as usize];
-        let size = match &field_type {
-            FieldType::Value => size_from_sdna as usize,
-            FieldType::ValueArray { dimensions } => {
-                count_from_dimensions(dimensions) * size_from_sdna as usize
-            }
-            FieldType::FnPointer => ptr_size,
-            FieldType::Pointer { .. } if type_name == "DrawData" => {
-                let size = block.size as usize - offset;
-                if ptr_size <= size {
-                    ptr_size
-                } else {
-                    size
+    for &offset in fields {
+        let range_lo = offset;
+        let range_hi = std::cmp::min(offset + ptr_size, block.size as usize);
+        if offset + ptr_size >= block.size as usize {
+            continue;
+        }
+
+        let data_for_field = &block.data[range_lo..range_hi].to_vec();
+        match pointer_size {
+            PointerSize::Bits32 => {
+                if let Ok(data) = std::convert::TryInto::<[u8; 4]>::try_into(data_for_field.clone())
+                {
+                    let from_fn = match endianness {
+                        Endianness::Little => u32::from_le_bytes,
+                        Endianness::Big => u32::from_be_bytes,
+                    };
+                    pointers.push((offset, Either::Left(from_fn(data))));
                 }
             }
-            FieldType::Pointer { .. } => 8_usize,
-        };
-
-        let data_for_field = if size > 0 {
-            block.data[offset..offset + size].to_vec()
-        } else {
-            vec![]
-        };
-
-        if is_pointer(&name) {
-            match block.memory_address {
-                Either::Left(_) => {
-                    if let Ok(data) =
-                        std::convert::TryInto::<[u8; 4]>::try_into(data_for_field.clone())
-                    {
-                        let from_fn = match endianness {
-                            Endianness::Little => u32::from_le_bytes,
-                            Endianness::Big => u32::from_be_bytes,
-                        };
-                        pointers.push((offset, Either::Left(from_fn(data))));
-                    }
-                }
-                Either::Right(_) => {
-                    if let Ok(data) =
-                        std::convert::TryInto::<[u8; 8]>::try_into(data_for_field.clone())
-                    {
-                        let from_fn = match endianness {
-                            Endianness::Little => u64::from_le_bytes,
-                            Endianness::Big => u64::from_be_bytes,
-                        };
-                        pointers.push((offset, Either::Right(from_fn(data))))
-                    }
+            PointerSize::Bits64 => {
+                if let Ok(data) = std::convert::TryInto::<[u8; 8]>::try_into(data_for_field.clone())
+                {
+                    let from_fn = match endianness {
+                        Endianness::Little => u64::from_le_bytes,
+                        Endianness::Big => u64::from_be_bytes,
+                    };
+                    pointers.push((offset, Either::Right(from_fn(data))))
                 }
             }
         }
-
-        offset += size;
     }
 
     BlockContentWithPointers {
@@ -547,13 +527,19 @@ pub fn parse_blend(blend_data: Vec<u8>) -> Result<BlendFileWithPointerData, Blen
             .expect("Cannot parse SDNA block")
     });
 
+    let lookup = make_field_meta_lookup(&sdna_info, parsed_blend_file.header.pointer_size);
+
     let blocks_with_pointer_data = measure_time!("Scrubbing pointers", {
         parsed_blend_file
             .blocks
             .into_par_iter()
             .map(|block| {
-                let block_content =
-                    parse_block_contents(block, &sdna_info, parsed_blend_file.header.endianness);
+                let block_content = parse_block_contents(
+                    block,
+                    parsed_blend_file.header.pointer_size,
+                    parsed_blend_file.header.endianness,
+                    &lookup,
+                );
                 let scrubbed_block =
                     scrub_block(block_content.simple_block, &block_content.pointers);
                 BlockContentWithPointers {
@@ -592,4 +578,47 @@ pub fn print_blend(mut blend_file: BlendFileWithPointerData, out: &mut Vec<u8>) 
     };
 
     print_blend_manual(parsed_blend, out);
+}
+
+pub type FieldMetaLookup = HashMap<u32, Vec<usize>>;
+
+pub fn make_field_meta_lookup(sdna_info: &DNAInfo, pointer_size: PointerSize) -> FieldMetaLookup {
+    let mut result: HashMap<u32, Vec<usize>> = HashMap::new();
+    let ptr_size = match pointer_size {
+        PointerSize::Bits32 => 4,
+        PointerSize::Bits64 => 8,
+    };
+
+    let re = Regex::new(r"\[(\d+)\]").unwrap();
+
+    for (index, dna_struct) in sdna_info.structs.iter().enumerate() {
+        let mut offset: usize = 0;
+        let mut ptr_offsets: Vec<usize> = vec![];
+
+        for field in &dna_struct.fields {
+            let name = sdna_info.names[field.name_idx as usize].clone();
+            let field_type = parse_field_type(&name, &re);
+            let size_from_sdna = sdna_info.type_lengths[field.type_idx as usize];
+            let size = match &field_type {
+                FieldType::Value => size_from_sdna as usize,
+                FieldType::ValueArray { dimensions } => {
+                    count_from_dimensions(dimensions) * size_from_sdna as usize
+                }
+                FieldType::FnPointer => ptr_size,
+                FieldType::Pointer { .. } => ptr_size,
+            };
+
+            if is_pointer(&name) {
+                ptr_offsets.push(offset);
+            }
+
+            offset += size;
+        }
+
+        if !ptr_offsets.is_empty() {
+            result.insert(index as u32, ptr_offsets);
+        }
+    }
+
+    result
 }

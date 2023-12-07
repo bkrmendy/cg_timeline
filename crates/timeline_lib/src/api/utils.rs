@@ -32,7 +32,7 @@ macro_rules! measure_time {
 
 pub fn block_hash_diff(older: Vec<String>, newer: Vec<BlockRecord>) -> Vec<BlockRecord> {
     let new_block_hashes = newer.iter().map(|b| b.hash.clone());
-    let older_set: HashSet<String> = HashSet::from_iter(older.into_iter());
+    let older_set: HashSet<String> = HashSet::from_iter(older);
     let newer_set: HashSet<String> = HashSet::from_iter(new_block_hashes);
 
     let diff: HashSet<String> = newer_set

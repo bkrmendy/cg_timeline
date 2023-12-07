@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::Path};
+use std::fmt::Display;
 
 use super::structs::{BlockRecord, Commit};
 
