@@ -8,7 +8,7 @@ use crate::{
     exchange::structs::{Exchange, Sync},
 };
 
-use super::common::parse_hash_list;
+use super::common::parse_blocks_and_pointers;
 
 pub fn prepare_sync(db_path: &str) -> Result<Sync, DBError> {
     let db = Persistence::open(db_path)?;
@@ -32,7 +32,11 @@ pub fn prepare_sync(db_path: &str) -> Result<Sync, DBError> {
         let commits = db.read_descendants_of_commit(&hash)?;
 
         for commit in commits.into_iter() {
-            let blocks_of_this_commit = parse_hash_list(commit.blocks.clone());
+            let blocks_of_this_commit: Vec<String> =
+                parse_blocks_and_pointers(&commit.blocks_and_pointers)
+                    .into_iter()
+                    .map(|b| b.hash)
+                    .collect();
 
             all_commits.push(commit);
 

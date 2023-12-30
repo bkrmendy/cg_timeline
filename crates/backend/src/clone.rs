@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use actix_web::{web, HttpResponse};
 use timeline_lib::{
-    api::common::parse_hash_list,
+    api::common::parse_blocks_and_pointers,
     db::structs::{BlockRecord, Commit},
     exchange::structs::{encode_exchange, Exchange},
 };
@@ -19,12 +19,12 @@ fn prepare_exchange_response(db: &DB, project_id: &str) -> Result<Exchange, Serv
     let commits = read_commits_with_project_id(db, project_id)?;
 
     for commit in commits.into_iter() {
-        let blocks_of_this_commit = parse_hash_list(commit.blocks.clone());
+        let blocks_of_this_commit = parse_blocks_and_pointers(&commit.blocks_and_pointers);
 
         all_commits.push(commit);
 
         for block in blocks_of_this_commit.into_iter() {
-            block_hashes.insert(block);
+            block_hashes.insert(block.hash);
         }
     }
 

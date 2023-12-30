@@ -1,12 +1,13 @@
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{Cursor, Error, ErrorKind, Read, Write};
 use tempfile::NamedTempFile;
 use zstd::decode_all;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Either<Left, Right> {
     Left(Left),
     Right(Right),
@@ -46,18 +47,13 @@ pub fn from_file(path: &str) -> Result<Vec<u8>, Error> {
 
 pub fn to_file_transactional(
     path: &str,
-    header: Vec<u8>,
-    blocks: Vec<Vec<u8>>,
+    blend_data: Vec<u8>,
     terminator: Vec<u8>,
 ) -> Result<(), Error> {
     let temp_file = NamedTempFile::new()?;
 
     let mut gz = GzEncoder::new(&temp_file, Compression::default());
-    gz.write_all(&header)?;
-
-    for block in blocks {
-        gz.write_all(&block)?;
-    }
+    gz.write_all(&blend_data)?;
 
     gz.write_all(&terminator)?;
 
