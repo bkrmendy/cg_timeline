@@ -1,7 +1,7 @@
 use crate::{
     api::{
         common::{
-            blend_file_data_from_file, check_if_file_modified, parse_blocks_and_pointers,
+            blend_file_data_from_file, get_file_mod_time, parse_blocks_and_pointers,
             read_latest_commit_hash_on_branch,
         },
         utils::block_hash_diff,
@@ -22,7 +22,7 @@ pub fn create_new_checkpoint(
 ) -> Result<(), DBError> {
     let mut conn = Persistence::open(db_path)?;
 
-    let file_last_mod_time: i64 = check_if_file_modified(&conn, file_path)?;
+    let file_last_mod_time: i64 = get_file_mod_time(file_path)?;
 
     let start_commit_command = Instant::now();
     let blend_data = blend_file_data_from_file(file_path)
@@ -30,11 +30,29 @@ pub fn create_new_checkpoint(
 
     println!("Hash: {}", &blend_data.hash);
 
+    let hash_already_exists = conn.check_commit_exists(&blend_data.hash)?;
+    // A checkpoint with the same hash already exists, bail out
+    if hash_already_exists {
+        return Ok(());
+    }
+
+    let current_commit_hash = conn.read_current_commit_pointer()?;
     let current_branch_name = conn.read_current_branch_name()?;
 
-    let latest_commit_hash = read_latest_commit_hash_on_branch(&conn, &current_branch_name)?;
+    let latest_commit_hash_on_branch =
+        read_latest_commit_hash_on_branch(&conn, &current_branch_name)?;
 
-    let latest_commit = conn.read_commit(&latest_commit_hash).ok().flatten();
+    // This is the detached HEAD situation
+    if current_commit_hash != latest_commit_hash_on_branch {
+        return Err(DBError::Consistency(String::from(
+            "Create a new branch to create a checkpoint",
+        )));
+    }
+
+    let latest_commit = conn
+        .read_commit(&latest_commit_hash_on_branch)
+        .ok()
+        .flatten();
 
     let blocks_from_latest = match latest_commit {
         None => blend_data.block_data,
@@ -63,7 +81,7 @@ pub fn create_new_checkpoint(
 
         let commit = Commit {
             hash: blend_data.hash,
-            prev_commit_hash: latest_commit_hash,
+            prev_commit_hash: latest_commit_hash_on_branch,
             project_id,
             branch: current_branch_name,
             message: message.unwrap_or_default(),

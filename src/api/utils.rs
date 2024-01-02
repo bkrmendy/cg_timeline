@@ -26,9 +26,8 @@ pub fn block_hash_diff(older: Vec<String>, newer: Vec<BlockRecord>) -> Vec<Block
     let older_set: HashSet<String> = HashSet::from_iter(older);
     let newer_set: HashSet<String> = HashSet::from_iter(new_block_hashes);
 
-    let diff: HashSet<String> = newer_set
+    let diff: HashSet<&String> = newer_set
         .difference(&older_set)
-        .map(|a| a.to_owned())
         .collect();
 
     newer

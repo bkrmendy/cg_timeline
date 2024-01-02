@@ -1,8 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use rayon::iter::{
-    IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use regex::Regex;
 
 use crate::measure_time;

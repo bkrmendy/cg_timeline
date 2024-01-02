@@ -34,25 +34,6 @@ pub fn get_file_mod_time(file_path: &str) -> Result<i64, DBError> {
     Ok(FileTime::from_last_modification_time(&metadata).unix_seconds())
 }
 
-pub fn check_if_file_modified(db: &Persistence, file_path: &str) -> Result<i64, DBError> {
-    let last_mod_time_from_file = get_file_mod_time(file_path)?;
-    let last_mod_time_from_db = db.read_last_modification_time()?;
-
-    if last_mod_time_from_db.is_none() {
-        return Ok(last_mod_time_from_file);
-    }
-
-    let last_mod_time_from_db = last_mod_time_from_db.unwrap();
-
-    if last_mod_time_from_db <= last_mod_time_from_file {
-        return Ok(last_mod_time_from_file);
-    }
-
-    Err(DBError::Error(
-        "File not modified since the last change".to_owned(),
-    ))
-}
-
 pub struct BlendFileDataForCheckpoint {
     pub hash: String,
     pub header_bytes: Vec<u8>,

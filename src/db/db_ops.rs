@@ -33,6 +33,7 @@ pub trait DB: Sized {
 
     fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError>;
     fn read_commit(&self, hash: &str) -> Result<Option<Commit>, DBError>;
+    fn check_commit_exists(&self, hash: &str) -> Result<bool, DBError>;
 
     fn read_ancestors_of_commit(
         &self,
@@ -275,6 +276,23 @@ impl DB for Persistence {
             header: row.get(7).expect("No header found in row"),
             blocks_and_pointers: row.get(8).expect("No blocks found in row")
         }))).map_err(|e| DBError::Error(format!("Cannot read commit: {:?}", e)))
+    }
+
+    fn check_commit_exists(&self, hash: &str) -> Result<bool, DBError> {
+        let mut stmt = self
+            .sqlite_db
+            .prepare("SELECT hash FROM commits WHERE hash = ?1")
+            .map_err(|e| DBError::Error(format!("Cannot create statement: {:?}", e)))?;
+
+        let mut rows = stmt
+            .query([hash])
+            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
+
+        let next = rows
+            .next()
+            .map_err(|e| DBError::Error(format!("Cannot get next row: {:?}", e)))?;
+
+        Ok(next.is_some())
     }
 
     fn read_ancestors_of_commit(
@@ -587,297 +605,4 @@ impl DB for Persistence {
     ) -> Result<(), DBError> {
         write_config_inner(tx, &last_mod_time_key(), &last_mod_time.to_string())
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use tempfile::NamedTempFile;
-
-    use crate::api::{
-        init_command::{INITIAL_COMMIT_HASH, MAIN_BRANCH_NAME},
-        test_utils::{init_db_from_simple_timeline, SimpleCommit, SimpleTimeline},
-    };
-
-    use super::*;
-
-    // #[ignore]
-    // #[test]
-    // fn test_read_descendants_of_commit() {
-    //     let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
-    //     let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
-
-    //     let mut db = Persistence::open(tmp_path).expect("Cannot open test DB");
-
-    //     /*
-    //                 x
-    //               /
-    //       1 - 2 - 3 - 4
-    //        \
-    //           a - b
-    //     */
-    //     db.execute_in_transaction(|tx| {
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "1".to_owned(),
-    //                 prev_commit_hash: String::from(INITIAL_COMMIT_HASH),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 1,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "aaa".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "2".to_owned(),
-    //                 prev_commit_hash: "1".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 2,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "bbb".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "3".to_owned(),
-    //                 prev_commit_hash: "2".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 3,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "ccc".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "4".to_owned(),
-    //                 prev_commit_hash: "3".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 4,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "ddd".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "a".to_owned(),
-    //                 prev_commit_hash: "1".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 10,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "eee".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "b".to_owned(),
-    //                 prev_commit_hash: "a".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 11,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "fff".to_owned(),
-    //             },
-    //         )?;
-
-    //         Persistence::write_commit(
-    //             tx,
-    //             Commit {
-    //                 hash: "x".to_owned(),
-    //                 prev_commit_hash: "3".to_owned(),
-    //                 project_id: "a".to_owned(),
-    //                 branch: String::from(MAIN_BRANCH_NAME),
-    //                 message: "hi".to_owned(),
-    //                 author: "test".to_owned(),
-    //                 date: 10,
-    //                 header: vec![],
-    //                 blocks_and_pointers: "xxx".to_owned(),
-    //             },
-    //         )?;
-
-    //         Ok(())
-    //     })
-    //     .expect("Cannot execute transaction");
-
-    //     // Check the diagram above
-    //     {
-    //         // Descendants of 1
-    //         let commits = db
-    //             .read_descendants_of_commit("1")
-    //             .expect("Cannot read commits");
-
-    //         let hashes: Vec<String> = commits.iter().map(|c| c.hash.clone()).collect();
-
-    //         assert_eq!(hashes, vec!["1", "2", "3", "4", "a", "x", "b"]);
-    //     }
-
-    //     {
-    //         // Descendants of a
-    //         let commits = db
-    //             .read_descendants_of_commit("a")
-    //             .expect("Cannot read commits");
-
-    //         let hashes: Vec<String> = commits.iter().map(|c| c.hash.clone()).collect();
-
-    //         assert_eq!(hashes, vec!["a", "b"]);
-    //     }
-
-    //     {
-    //         // Descendants of 2
-    //         let commits = db
-    //             .read_descendants_of_commit("2")
-    //             .expect("Cannot read commits");
-
-    //         let hashes: Vec<String> = commits.iter().map(|c| c.hash.clone()).collect();
-
-    //         assert_eq!(hashes, vec!["2", "3", "4", "x"]);
-    //     }
-
-    //     {
-    //         // Descendants of 3
-    //         let hashes: Vec<String> = db
-    //             .read_descendants_of_commit("3")
-    //             .expect("Cannot read commits")
-    //             .into_iter()
-    //             .map(|c| c.hash)
-    //             .collect();
-
-    //         assert_eq!(hashes, vec!["3", "4", "x"]);
-    //     }
-
-    //     {
-    //         // Descendants of x
-    //         let commits = db
-    //             .read_descendants_of_commit("x")
-    //             .expect("Cannot read commits");
-
-    //         let hashes: Vec<String> = commits.iter().map(|c| c.hash.clone()).collect();
-
-    //         assert_eq!(hashes, vec!["x"]);
-    //     }
-    // }
-
-    // #[test]
-    // fn test_delete_branch_with_commits() {
-    //     let tmp_file = NamedTempFile::new().expect("Cannot create temp dir");
-    //     let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
-
-    //     /*
-    //       alt1           x
-    //                     /
-    //       main 1 - 2 - 3 - 4
-    //             \
-    //       alt2    a - b
-    //     */
-    //     init_db_from_simple_timeline(
-    //         tmp_path,
-    //         SimpleTimeline {
-    //             project_id: String::from("a"),
-    //             author: "test".to_owned(),
-    //             blocks: vec![
-    //                 String::from("aaa"),
-    //                 String::from("bbb"),
-    //                 String::from("ccc"),
-    //                 String::from("ddd"),
-    //                 String::from("eee"),
-    //                 String::from("fff"),
-    //                 String::from("ggg"),
-    //             ],
-    //             commits: vec![
-    //                 SimpleCommit {
-    //                     hash: "1".to_owned(),
-    //                     prev_hash: String::from(INITIAL_COMMIT_HASH),
-    //                     branch: String::from("main"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "aaa,bbb".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "2".to_owned(),
-    //                     prev_hash: "1".to_owned(),
-    //                     branch: String::from("main"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "bbb,ccc".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "3".to_owned(),
-    //                     prev_hash: "2".to_owned(),
-    //                     branch: String::from("main"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "ccc,ddd".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "4".to_owned(),
-    //                     prev_hash: "3".to_owned(),
-    //                     branch: String::from("main"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "ddd,eee".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "a".to_owned(),
-    //                     prev_hash: "1".to_owned(),
-    //                     branch: String::from("alt2"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "eee,fff".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "b".to_owned(),
-    //                     prev_hash: "a".to_owned(),
-    //                     branch: String::from("alt2"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "fff,111".to_owned(),
-    //                 },
-    //                 SimpleCommit {
-    //                     hash: "x".to_owned(),
-    //                     prev_hash: "3".to_owned(),
-    //                     branch: String::from("alt1"),
-    //                     message: "hi".to_owned(),
-    //                     blocks: "222,aaa".to_owned(),
-    //                 },
-    //             ],
-    //         },
-    //     );
-
-    //     let mut db = Persistence::open(tmp_path).expect("Cannot open test DB");
-
-    //     db.execute_in_transaction(|tx| Persistence::delete_branch_with_commits(tx, "alt2"))
-    //         .expect("cannot delete");
-
-    //     let branches = db.read_all_branches().expect("Cannot read branches");
-    //     assert_eq!(branches, vec!["alt1", "main"]);
-
-    //     let commits: Vec<String> = db
-    //         .read_descendants_of_commit("1")
-    //         .expect("cannot read descendants of commit")
-    //         .into_iter()
-    //         .map(|c| c.hash)
-    //         .collect();
-
-    //     assert_eq!(commits, vec!["1", "2", "3", "4", "x"]);
-    // }
 }
