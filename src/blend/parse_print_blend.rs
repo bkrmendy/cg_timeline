@@ -39,7 +39,7 @@ impl Display for BlendFileParseError {
     }
 }
 
-fn lmap<L, R, LL, F>(t: (L, R), f: F) -> (LL, R)
+fn map_first<L, R, LL, F>(t: (L, R), f: F) -> (LL, R)
 where
     F: FnOnce(L) -> LL,
 {
@@ -86,22 +86,22 @@ where
 
 fn parse_u32(data: &[u8], endianness: Endianness) -> BlendFileParseResult<u32> {
     match endianness {
-        Endianness::Big => get_bytes::<4>(data).map(|bs| lmap(bs, u32::from_be_bytes)),
-        Endianness::Little => get_bytes::<4>(data).map(|bs| lmap(bs, u32::from_le_bytes)),
+        Endianness::Big => get_bytes::<4>(data).map(|bs| map_first(bs, u32::from_be_bytes)),
+        Endianness::Little => get_bytes::<4>(data).map(|bs| map_first(bs, u32::from_le_bytes)),
     }
 }
 
 fn parse_i16(data: &[u8], endianness: Endianness) -> BlendFileParseResult<i16> {
     match endianness {
-        Endianness::Big => get_bytes::<2>(data).map(|bs| lmap(bs, i16::from_be_bytes)),
-        Endianness::Little => get_bytes::<2>(data).map(|bs| lmap(bs, i16::from_le_bytes)),
+        Endianness::Big => get_bytes::<2>(data).map(|bs| map_first(bs, i16::from_be_bytes)),
+        Endianness::Little => get_bytes::<2>(data).map(|bs| map_first(bs, i16::from_le_bytes)),
     }
 }
 
 fn parse_i32(data: &[u8], endianness: Endianness) -> BlendFileParseResult<i32> {
     match endianness {
-        Endianness::Big => get_bytes::<4>(data).map(|bs| lmap(bs, i32::from_be_bytes)),
-        Endianness::Little => get_bytes::<4>(data).map(|bs| lmap(bs, i32::from_le_bytes)),
+        Endianness::Big => get_bytes::<4>(data).map(|bs| map_first(bs, i32::from_be_bytes)),
+        Endianness::Little => get_bytes::<4>(data).map(|bs| map_first(bs, i32::from_le_bytes)),
     }
 }
 
@@ -143,8 +143,8 @@ fn get_byte_vec(data: &[u8], count: usize) -> BlendFileParseResult<Vec<u8>> {
 
 fn parse_u64(data: &[u8], endianness: Endianness) -> BlendFileParseResult<u64> {
     match endianness {
-        Endianness::Big => get_bytes::<8>(data).map(|bs| lmap(bs, u64::from_be_bytes)),
-        Endianness::Little => get_bytes::<8>(data).map(|bs| lmap(bs, u64::from_le_bytes)),
+        Endianness::Big => get_bytes::<8>(data).map(|bs| map_first(bs, u64::from_be_bytes)),
+        Endianness::Little => get_bytes::<8>(data).map(|bs| map_first(bs, u64::from_le_bytes)),
     }
 }
 
@@ -155,7 +155,7 @@ pub fn parse_header_manual(data: &[u8]) -> BlendFileParseResult<Header> {
     }
 
     let (pointer_size, rest) = get_bytes::<1>(rest).map(|res| {
-        lmap(res, |[p]| {
+        map_first(res, |[p]| {
             if p == b'_' {
                 PointerSize::Bits32
             } else {
@@ -165,7 +165,7 @@ pub fn parse_header_manual(data: &[u8]) -> BlendFileParseResult<Header> {
     })?;
 
     let (endianness, rest) = get_bytes::<1>(rest).map(|res| {
-        lmap(res, |[p]| {
+        map_first(res, |[p]| {
             if p == b'v' {
                 Endianness::Little
             } else {
@@ -234,22 +234,16 @@ pub fn parse_block_manual(
     let (size, block_data) = parse_i32(block_data, endianness)?;
     let (memory_address, block_data) = match pointer_size {
         PointerSize::Bits32 => {
-            parse_u32(block_data, endianness).map(|res| lmap(res, Either::Left))?
+            parse_u32(block_data, endianness).map(|res| map_first(res, Either::Left))?
         }
         PointerSize::Bits64 => {
-            parse_u64(block_data, endianness).map(|res| lmap(res, Either::Right))?
+            parse_u64(block_data, endianness).map(|res| map_first(res, Either::Right))?
         }
     };
 
     let (dna_index, block_data) = parse_u32(block_data, endianness)?;
     let (count, block_data) = parse_u32(block_data, endianness)?;
-    // if size as usize != block_data.len() {
-    //     panic!(
-    //         "Something smells, {size}, {}, {}",
-    //         block_data.len(),
-    //         String::from_utf8(code.to_vec()).unwrap()
-    //     )
-    // }
+    
     let (data, block_data) = get_byte_vec(block_data, size as usize)?;
 
     Ok((
