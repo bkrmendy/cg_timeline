@@ -1,3 +1,4 @@
+use blake2b_simd::blake2b;
 use filetime::FileTime;
 use flate2::{write::GzEncoder, Compression};
 use rayon::prelude::*;
@@ -48,6 +49,10 @@ pub struct BlockMetadata {
     pub pointers: OffsetsWithPointerValue, // offset with pointer value
 }
 
+pub fn get_hash(data: &[u8]) -> String {
+    blake2b(data).to_hex().to_string()
+}
+
 pub fn blend_file_data_from_file(
     path_to_blend: &str,
 ) -> Result<BlendFileDataForCheckpoint, String> {
@@ -64,7 +69,7 @@ pub fn blend_file_data_from_file(
     println!("Number of blocks: {:?}", parsed_blend.blocks.len());
 
     let block_data_with_meta: Vec<(BlockMetadata, Vec<u8>)> =
-        measure_time!(format!("Hashing blocks {:?}", path_to_blend), {
+        measure_time!(format!("Hashing and compressing blocks {:?}", path_to_blend), {
             parsed_blend
                 .blocks
                 .into_par_iter()
@@ -72,7 +77,7 @@ pub fn blend_file_data_from_file(
                     let mut block_blob: Vec<u8> = vec![];
                     print_block_manual(parsed_block.simple_block, endianness, &mut block_blob);
 
-                    let hash = md5::compute(&block_blob);
+                    let hash = get_hash(&block_blob);
 
                     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
                     encoder
@@ -84,7 +89,7 @@ pub fn blend_file_data_from_file(
 
                     Ok((
                         BlockMetadata {
-                            hash: format!("{:x}", hash),
+                            hash,
                             original_mem_address: parsed_block.original_mem_address,
                             pointers: parsed_block.pointers,
                         },
@@ -115,11 +120,11 @@ pub fn blend_file_data_from_file(
     let block_meta_bytes = print_blocks_and_pointers(blocks_meta);
 
     let blend_hash = measure_time!(format!("Hashing {:?}", path_to_blend), {
-        md5::compute(&block_meta_bytes)
+        get_hash(&block_meta_bytes)
     });
 
     Ok(BlendFileDataForCheckpoint {
-        hash: format!("{:x}", blend_hash),
+        hash: blend_hash,
         header_bytes: header_data,
         blocks_and_pointers_bytes: block_meta_bytes,
         block_data: block_records,

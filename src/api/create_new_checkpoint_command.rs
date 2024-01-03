@@ -4,7 +4,7 @@ use crate::{
             blend_file_data_from_file, get_file_mod_time, parse_blocks_and_pointers,
             read_latest_commit_hash_on_branch,
         },
-        utils::block_hash_diff,
+        utils::{block_hash_diff, get_file_size_str},
     },
     db::{
         db_ops::{DBError, Persistence, DB},
@@ -23,12 +23,14 @@ pub fn create_new_checkpoint(
     let mut conn = Persistence::open(db_path)?;
 
     let file_last_mod_time: i64 = get_file_mod_time(file_path)?;
+    println!(
+        "Size of timeline db before creating checkpoint: {}",
+        get_file_size_str(db_path)
+    );
 
-    let start_commit_command = Instant::now();
+    let start_checkpoint_command = Instant::now();
     let blend_data = blend_file_data_from_file(file_path)
         .map_err(|e| DBError::Error(format!("Error parsing blend file: {}", e)))?;
-
-    println!("Hash: {}", &blend_data.hash);
 
     let hash_already_exists = conn.check_commit_exists(&blend_data.hash)?;
     // A checkpoint with the same hash already exists, bail out
@@ -54,7 +56,7 @@ pub fn create_new_checkpoint(
         .ok()
         .flatten();
 
-    let blocks_from_latest = match latest_commit {
+    let new_blocks_since_latest = match latest_commit {
         None => blend_data.block_data,
         Some(commit) => {
             let hashes = parse_blocks_and_pointers(&commit.blocks_and_pointers)
@@ -65,15 +67,18 @@ pub fn create_new_checkpoint(
         }
     };
 
-    println!("Number of blocks from latest: {}", blocks_from_latest.len());
+    println!(
+        "Number new of blocks since latest: {}",
+        new_blocks_since_latest.len()
+    );
 
     let project_id = conn.read_project_id()?;
 
-    let name = conn.read_name()?.unwrap_or("Anon".to_owned());
+    let name = conn.read_name()?.unwrap_or("".to_owned());
 
     conn.execute_in_transaction(|tx| {
         measure_time!(format!("Writing blocks {:?}", file_path), {
-            Persistence::write_blocks(tx, &blocks_from_latest[..])?
+            Persistence::write_blocks(tx, &new_blocks_since_latest[..])?
         });
         Persistence::write_branch_tip(tx, &current_branch_name, &blend_data.hash)?;
         Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
@@ -93,7 +98,14 @@ pub fn create_new_checkpoint(
         Persistence::write_commit(tx, commit)
     })?;
 
-    println!("Committing took {:?}", start_commit_command.elapsed());
+    println!(
+        "Creating checkpoint took {:?}",
+        start_checkpoint_command.elapsed()
+    );
+    println!(
+        "Size of timeline db after creating checkpoint: {}",
+        get_file_size_str(db_path)
+    );
     Ok(())
 }
 

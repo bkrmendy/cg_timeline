@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<(), DBError> {
-    let end_to_end_timer = Instant::now();
+    let restore_command_timer = Instant::now();
 
     let mut conn = Persistence::open(db_path)?;
 
@@ -78,7 +78,7 @@ pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<
         Ok(())
     })?;
 
-    println!("Checkout took: {:?}", end_to_end_timer.elapsed());
+    println!("Checkout took: {:?}", restore_command_timer.elapsed());
 
     Ok(())
 }

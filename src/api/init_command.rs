@@ -1,4 +1,7 @@
+use std::time::Instant;
+
 use crate::{
+    api::utils::get_file_size_str,
     db::{
         db_ops::{DBError, Persistence, DB},
         structs::Commit,
@@ -12,6 +15,7 @@ pub const INITIAL_COMMIT_HASH: &str = "initial";
 pub const MAIN_BRANCH_NAME: &str = "main";
 
 pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(), DBError> {
+    let connect_command_timer = Instant::now();
     let blend_data = blend_file_data_from_file(path_to_blend)
         .map_err(|e| DBError::Error(format!("Error parsing blend file: {}", e)))?;
 
@@ -53,6 +57,10 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
         Persistence::write_last_modifiction_time(tx, file_last_mod_time)?;
         Ok(())
     })?;
+
+    println!("Connecting took {:?}", connect_command_timer.elapsed());
+    println!("Size of timeline db: {}", get_file_size_str(db_path));
+
     Ok(())
 }
 
