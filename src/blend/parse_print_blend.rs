@@ -243,7 +243,7 @@ pub fn parse_block_manual(
 
     let (dna_index, block_data) = parse_u32(block_data, endianness)?;
     let (count, block_data) = parse_u32(block_data, endianness)?;
-    
+
     let (data, block_data) = get_byte_vec(block_data, size as usize)?;
 
     Ok((

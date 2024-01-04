@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     api::{
-        create_new_checkpoint_command::create_new_checkpoint,
+        blend_file_from_timeline_command, create_new_checkpoint_command::create_new_checkpoint,
         get_current_branch::get_current_branch, get_current_commit::get_current_commit,
         init_command::init_db, list_branches_command::list_braches,
         log_checkpoints_command::list_checkpoints, new_branch_command::create_new_branch,
@@ -46,9 +46,9 @@ pub struct SwitchBranchResponse {
     pub current_checkpoint_hash: String,
 }
 
-pub enum Response {
-    BranchesUpdated,
-    CommitsUpdated,
+#[derive(Serialize)]
+pub struct BlendFileFromTimelineResponse {
+    pub restored_file_path: String,
 }
 
 #[derive(Debug)]
@@ -75,7 +75,6 @@ impl Display for FFIError {
 struct DBPath<'a>(&'a str);
 struct PathToBlend<'a>(&'a str);
 
-// - connect
 fn connect_command(
     db_path: DBPath,
     path_to_blend: PathToBlend,
@@ -103,7 +102,6 @@ fn connect_command(
     })
 }
 
-// - create checkpoint
 fn create_checkpoint(
     db_path: DBPath,
     path_to_blend: PathToBlend,
@@ -123,7 +121,7 @@ fn create_checkpoint(
         current_checkpoint_hash,
     })
 }
-// - restore checkpoint
+
 fn restore_checkpoint(
     db_path: DBPath,
     path_to_blend: PathToBlend,
@@ -136,7 +134,6 @@ fn restore_checkpoint(
     })
 }
 
-// - switch to new branch
 fn switch_to_new_branch(
     db_path: DBPath,
     branch_name: &str,
@@ -168,6 +165,12 @@ fn switch_to_branch(
         checkpoints_on_this_branch,
         current_checkpoint_hash,
     })
+}
+
+fn blend_file_from_timeline(db_path: DBPath) -> Result<BlendFileFromTimelineResponse, FFIError> {
+    let restored_file_path = blend_file_from_timeline_command::blend_file_from_timeline(db_path.0)
+        .map_err(from_db_error)?;
+    Ok(BlendFileFromTimelineResponse { restored_file_path })
 }
 
 type JsonObject = Map<String, Value>;
@@ -237,6 +240,12 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let result =
                 switch_to_branch(DBPath(db_path), PathToBlend(path_to_blend), branch_name)?;
 
+            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+        }
+
+        "blend-file-from-timeline" => {
+            let db_path = get_string_value(value, "db_path")?;
+            let result = blend_file_from_timeline(DBPath(db_path))?;
             serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
         }
 

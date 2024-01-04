@@ -1,3 +1,4 @@
+pub mod blend_file_from_timeline_command;
 pub mod common;
 pub mod create_new_checkpoint_command;
 pub mod delete_branch;

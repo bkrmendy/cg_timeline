@@ -1,11 +1,7 @@
 extern crate timeline;
-use timeline::api::init_command;
+use timeline::api::blend_file_from_timeline_command;
 
 fn main() {
-    init_command::init_db(
-        "data/blender-splash.blend.db",
-        "22",
-        "data/blender-splash.blend",
-    )
-    .unwrap();
+    blend_file_from_timeline_command::blend_file_from_timeline("data/untitled.blend.timeline")
+        .unwrap();
 }
