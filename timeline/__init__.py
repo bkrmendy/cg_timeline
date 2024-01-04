@@ -15,6 +15,7 @@ bl_info = {
 
 CHECKMARK_ICON = 'CHECKMARK'
 BLANK_ICON = 'BLANK1'
+TRIA_RIGHT = 'TRIA_RIGHT'
 
 
 def get_file_path():
@@ -285,9 +286,9 @@ class RestoreOperator(bpy.types.Operator):
 
 
 class RestoreToFileOperator(bpy.types.Operator):
-    """Restore a checkpoint"""
+    """Restore a checkpoint to a new file"""
     bl_idname = "my.restore_to_file_operator"
-    bl_label = "Restore"
+    bl_label = "Restore to a new file"
 
     hash: bpy.props.StringProperty(name="Hash", default="")
     name: bpy.props.StringProperty(name="Checkpoint name", default="")
@@ -368,7 +369,7 @@ class CheckpointsList(bpy.types.UIList):
         restore_op.hash = item.hash
 
         restore_to_file_op = row.operator(
-            RestoreToFileOperator.bl_idname, text="R F")
+            RestoreToFileOperator.bl_idname, text="", icon=TRIA_RIGHT)
         restore_to_file_op.hash = item.hash
         restore_to_file_op.name = item.message
 
