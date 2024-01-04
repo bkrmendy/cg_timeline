@@ -284,6 +284,35 @@ class RestoreOperator(bpy.types.Operator):
             return {'FINISHED'}
 
 
+class RestoreToFileOperator(bpy.types.Operator):
+    """Restore a checkpoint"""
+    bl_idname = "my.restore_to_file_operator"
+    bl_label = "Restore"
+
+    hash: bpy.props.StringProperty(name="Hash", default="")
+    name: bpy.props.StringProperty(name="Checkpoint name", default="")
+
+    def execute(self, context):
+        with WaitCursor():
+            file_path = get_file_path()
+            file_name = os.path.basename(file_path)
+            file_name = "_".join(self.name.split(" ")) + ".blend"
+            destination_file_path = os.path.join(
+                os.path.dirname(file_path), file_name)
+
+            result = call_lib({
+                'command': 'restore-checkpoint',
+                'db_path': get_db_path(file_path),
+                'path_to_blend': destination_file_path,
+                'hash': str(self.hash)
+            })
+
+            if 'error' in result:
+                self.report({'ERROR'}, str(result))
+
+            return {'FINISHED'}
+
+
 class CreateCheckpointOperator(bpy.types.Operator):
     """Create a new checkpoint"""
     bl_idname = "my.create_checkpoint_operator"
@@ -334,8 +363,14 @@ class CheckpointsList(bpy.types.UIList):
         global CURRENT_CHECKPOINT_HASH
         icon = CHECKMARK_ICON if item.hash == CURRENT_CHECKPOINT_HASH else BLANK_ICON
         row.label(text=item.message, icon=icon)
-        row.operator("my.restore_operator",
-                     text="Restore").hash = item.hash
+        restore_op = row.operator(RestoreOperator.bl_idname,
+                                  text="Restore")
+        restore_op.hash = item.hash
+
+        restore_to_file_op = row.operator(
+            RestoreToFileOperator.bl_idname, text="R F")
+        restore_to_file_op.hash = item.hash
+        restore_to_file_op.name = item.message
 
 
 class BranchesList(bpy.types.UIList):
@@ -349,7 +384,7 @@ class BranchesList(bpy.types.UIList):
         global CURRENT_BRANCH
         icon = CHECKMARK_ICON if item.name == CURRENT_BRANCH else BLANK_ICON
         row.label(text=item.name, icon=icon)
-        row.operator("wm.switch_branch_operator",
+        row.operator(SwitchBranchesOperator.bl_idname,
                      text="Switch to").name = item.name
 
 
@@ -411,6 +446,7 @@ def register():
     bpy.utils.register_class(CheckpointItem)
     bpy.utils.register_class(BranchItem)
     bpy.utils.register_class(RestoreOperator)
+    bpy.utils.register_class(RestoreToFileOperator)
     bpy.utils.register_class(CreateCheckpointOperator)
     bpy.utils.register_class(CheckpointsList)
     bpy.utils.register_class(BranchesList)
@@ -443,6 +479,7 @@ def unregister():
     bpy.utils.unregister_class(CheckpointItem)
     bpy.utils.unregister_class(BranchItem)
     bpy.utils.unregister_class(RestoreOperator)
+    bpy.utils.unregister_class(RestoreToFileOperator)
     bpy.utils.unregister_class(CreateCheckpointOperator)
     bpy.utils.unregister_class(CheckpointsList)
     bpy.utils.unregister_class(BranchesList)
