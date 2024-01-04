@@ -56,8 +56,12 @@ pub fn get_hash(data: &[u8]) -> String {
 pub fn blend_file_data_from_file(
     path_to_blend: &str,
 ) -> Result<BlendFileDataForCheckpoint, String> {
+    let exists = std::path::Path::new(path_to_blend).exists();
+    if !exists {
+        return Err(String::from("Blend file does not exist"));
+    }
     let blend_bytes = measure_time!(format!("Reading {:?}", path_to_blend), {
-        from_file(path_to_blend).map_err(|_| "Cannot unpack blend file".to_owned())
+        from_file(path_to_blend).map_err(|e| format!("Cannot read blend file: {}", e))
     })?;
 
     let parsed_blend = measure_time!(format!("Parsing blocks {:?}", path_to_blend), {
@@ -68,8 +72,9 @@ pub fn blend_file_data_from_file(
 
     println!("Number of blocks: {:?}", parsed_blend.blocks.len());
 
-    let block_data_with_meta: Vec<(BlockMetadata, Vec<u8>)> =
-        measure_time!(format!("Hashing and compressing blocks {:?}", path_to_blend), {
+    let block_data_with_meta: Vec<(BlockMetadata, Vec<u8>)> = measure_time!(
+        format!("Hashing and compressing blocks {:?}", path_to_blend),
+        {
             parsed_blend
                 .blocks
                 .into_par_iter()
@@ -99,7 +104,8 @@ pub fn blend_file_data_from_file(
                 .collect::<Vec<Result<(BlockMetadata, Vec<u8>), String>>>()
                 .into_iter()
                 .collect::<Result<Vec<(BlockMetadata, Vec<u8>)>, String>>()
-        })?;
+        }
+    )?;
 
     let mut header_data: Vec<u8> = vec![];
     print_header_manual(parsed_blend.header, &mut header_data);

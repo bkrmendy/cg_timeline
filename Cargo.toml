@@ -27,4 +27,4 @@ version = "1.4.1"
 features = ["v4"]
 
 [lib]
-crate-type=["cdylib"]
+crate-type=["lib", "cdylib"]
