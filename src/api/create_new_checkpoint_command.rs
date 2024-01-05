@@ -1,3 +1,5 @@
+use anyhow::bail;
+
 use crate::{
     api::{
         common::{
@@ -19,7 +21,7 @@ pub fn create_new_checkpoint(
     file_path: &str,
     db_path: &str,
     message: Option<String>,
-) -> Result<(), DBError> {
+) -> anyhow::Result<()> {
     let mut conn = Persistence::open(db_path)?;
 
     let file_last_mod_time: i64 = get_file_mod_time(file_path)?;
@@ -46,7 +48,7 @@ pub fn create_new_checkpoint(
 
     // This is the detached HEAD situation
     if current_commit_hash != latest_commit_hash_on_branch {
-        return Err(DBError::Consistency(String::from(
+        bail!(DBError::Consistency(String::from(
             "Create a new branch to create a checkpoint",
         )));
     }

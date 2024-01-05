@@ -1,14 +1,16 @@
+use anyhow::bail;
+
 use crate::db::db_ops::{DBError, Persistence, DB};
 
 use super::{common::read_latest_commit_hash_on_branch, init_command::MAIN_BRANCH_NAME};
 
-pub fn create_new_branch(db_path: &str, new_branch_name: &str) -> Result<(), DBError> {
+pub fn create_new_branch(db_path: &str, new_branch_name: &str) -> anyhow::Result<()> {
     let mut db = Persistence::open(db_path)?;
 
     let current_brach_name = db.read_current_branch_name()?;
 
     if current_brach_name != MAIN_BRANCH_NAME {
-        return Err(DBError::Error(
+        bail!(DBError::Error(
             "New branches can only be created if main is the current branch".to_owned(),
         ));
     }
@@ -17,8 +19,6 @@ pub fn create_new_branch(db_path: &str, new_branch_name: &str) -> Result<(), DBE
 
     db.execute_in_transaction(|tx| {
         Persistence::write_branch_tip(tx, new_branch_name, &tip)?;
-        Persistence::write_remote_branch_tip(tx, new_branch_name, &tip)?;
-
         Persistence::write_current_branch_name(tx, new_branch_name)?;
         Ok(())
     })?;

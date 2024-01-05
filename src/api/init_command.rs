@@ -14,7 +14,7 @@ use super::common::{blend_file_data_from_file, get_file_mod_time};
 pub const INITIAL_COMMIT_HASH: &str = "initial";
 pub const MAIN_BRANCH_NAME: &str = "main";
 
-pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(), DBError> {
+pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> anyhow::Result<()> {
     let connect_command_timer = Instant::now();
     let blend_data = blend_file_data_from_file(path_to_blend)
         .map_err(|e| DBError::Error(format!("Error parsing blend file: {}", e)))?;
@@ -50,7 +50,6 @@ pub fn init_db(db_path: &str, project_id: &str, path_to_blend: &str) -> Result<(
             Persistence::write_blocks(tx, &blend_data.block_data)?;
         });
         Persistence::write_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
-        Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &hash)?;
         Persistence::write_current_commit_pointer(tx, &hash)?;
         Persistence::write_current_branch_name(tx, MAIN_BRANCH_NAME)?;
         Persistence::write_project_id(tx, project_id)?;

@@ -1,4 +1,5 @@
-use std::fmt::Display;
+use anyhow::{bail, Context};
+use std::{error::Error, fmt::Display};
 
 use super::structs::{BlockRecord, Commit};
 
@@ -15,6 +16,8 @@ pub enum DBError {
     Error(String),       // a recoverable error
 }
 
+impl Error for DBError {}
+
 impl Display for DBError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -26,67 +29,60 @@ impl Display for DBError {
 }
 
 pub trait DB: Sized {
-    fn open(path: &str) -> Result<Self, DBError>;
+    fn open(path: &str) -> anyhow::Result<Self>;
 
-    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError>;
-    fn read_blocks(&self, hashes: Vec<String>) -> Result<Vec<BlockRecord>, DBError>;
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> anyhow::Result<()>;
+    fn read_blocks(&self, hashes: Vec<String>) -> anyhow::Result<Vec<BlockRecord>>;
 
-    fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError>;
-    fn read_commit(&self, hash: &str) -> Result<Option<Commit>, DBError>;
-    fn check_commit_exists(&self, hash: &str) -> Result<bool, DBError>;
+    fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> anyhow::Result<()>;
+    fn read_commit(&self, hash: &str) -> anyhow::Result<Option<Commit>>;
+    fn check_commit_exists(&self, hash: &str) -> anyhow::Result<bool>;
 
     fn read_ancestors_of_commit(
         &self,
         starting_from_hash: &str,
-    ) -> Result<Vec<ShortCommitRecord>, DBError>;
+    ) -> anyhow::Result<Vec<ShortCommitRecord>>;
 
-    fn read_descendants_of_commit(&self, hash: &str) -> Result<Vec<Commit>, DBError>;
+    fn read_descendants_of_commit(&self, hash: &str) -> anyhow::Result<Vec<Commit>>;
 
-    fn read_current_branch_name(&self) -> Result<String, DBError>;
+    fn read_current_branch_name(&self) -> anyhow::Result<String>;
     fn write_current_branch_name(
         tx: &rusqlite::Transaction,
         brach_name: &str,
-    ) -> Result<(), DBError>;
+    ) -> anyhow::Result<()>;
 
-    fn read_current_commit_pointer(&self) -> Result<String, DBError>;
-    fn write_current_commit_pointer(tx: &rusqlite::Transaction, hash: &str) -> Result<(), DBError>;
+    fn read_current_commit_pointer(&self) -> anyhow::Result<String>;
+    fn write_current_commit_pointer(tx: &rusqlite::Transaction, hash: &str) -> anyhow::Result<()>;
 
-    fn read_all_branches(&self) -> Result<Vec<String>, DBError>;
+    fn read_all_branches(&self) -> anyhow::Result<Vec<String>>;
 
-    fn read_branch_tip(&self, branch_name: &str) -> Result<Option<String>, DBError>;
+    fn read_branch_tip(&self, branch_name: &str) -> anyhow::Result<Option<String>>;
     fn write_branch_tip(
         tx: &rusqlite::Transaction,
         brach_name: &str,
         tip: &str,
-    ) -> Result<(), DBError>;
+    ) -> anyhow::Result<()>;
 
-    fn read_remote_branch_tip(&self, branch_name: &str) -> Result<String, DBError>;
-    fn write_remote_branch_tip(
-        tx: &rusqlite::Transaction,
-        brach_name: &str,
-        tip: &str,
-    ) -> Result<(), DBError>;
+    fn read_project_id(&self) -> anyhow::Result<String>;
+    fn write_project_id(tx: &rusqlite::Transaction, last_mod_time: &str) -> anyhow::Result<()>;
 
-    fn read_project_id(&self) -> Result<String, DBError>;
-    fn write_project_id(tx: &rusqlite::Transaction, last_mod_time: &str) -> Result<(), DBError>;
-
-    fn read_last_modification_time(&self) -> Result<Option<i64>, DBError>;
+    fn read_last_modification_time(&self) -> anyhow::Result<Option<i64>>;
     fn write_last_modifiction_time(
         tx: &rusqlite::Transaction,
         last_mod_time: i64,
-    ) -> Result<(), DBError>;
+    ) -> anyhow::Result<()>;
 
-    fn read_name(&self) -> Result<Option<String>, DBError>;
-    fn write_name(tx: &rusqlite::Transaction, name: &str) -> Result<(), DBError>;
+    fn read_name(&self) -> anyhow::Result<Option<String>>;
+    fn write_name(tx: &rusqlite::Transaction, name: &str) -> anyhow::Result<()>;
 
     fn delete_branch_with_commits(
         tx: &rusqlite::Transaction,
         branch_name: &str,
-    ) -> Result<(), DBError>;
+    ) -> anyhow::Result<()>;
 
-    fn execute_in_transaction<F>(&mut self, f: F) -> Result<(), DBError>
+    fn execute_in_transaction<F>(&mut self, f: F) -> anyhow::Result<()>
     where
-        F: FnOnce(&rusqlite::Transaction) -> Result<(), DBError>;
+        F: FnOnce(&rusqlite::Transaction) -> anyhow::Result<()>;
 }
 
 pub struct Persistence {
@@ -118,40 +114,36 @@ fn user_name_key() -> String {
     "USER_NAME".to_string()
 }
 
-fn write_config_inner(tx: &rusqlite::Transaction, key: &str, value: &str) -> Result<(), DBError> {
+fn write_config_inner(tx: &rusqlite::Transaction, key: &str, value: &str) -> anyhow::Result<()> {
     tx.execute(
         "INSERT OR REPLACE INTO config (key, value) VALUES (?1, ?2)",
         [key, value],
     )
-    .map_err(|_| DBError::Error(format!("Cannot set {:?} for {:?}", value, key)))
+    .context(format!("Cannot set {:?} for {:?}", value, key))
     .map(|_| ())
 }
 
-fn read_config_inner(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, DBError> {
-    let mut stmt = conn
-        .prepare("SELECT value FROM config WHERE key = ?1")
-        .map_err(|_| DBError::Fundamental("Cannot prepare read commits query".to_owned()))?;
+fn read_config_inner(conn: &rusqlite::Connection, key: &str) -> anyhow::Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT value FROM config WHERE key = ?1")?;
 
-    let mut rows = stmt
-        .query([key])
-        .map_err(|_| DBError::Fundamental("Cannot query config table".to_owned()))?;
+    let mut rows = stmt.query([key])?;
+    let row = rows.next()?;
 
-    match rows.next() {
-        Ok(Some(row)) => row
-            .get(0)
-            .map_err(|_| DBError::Fundamental("Cannot read config key".to_owned())),
-        _ => Ok(None),
+    match row {
+        Some(r) => {
+            let value = r.get(0)?;
+            Ok(Some(value))
+        }
+        None => Ok(None),
     }
 }
 
 impl DB for Persistence {
-    fn open(sqlite_path: &str) -> Result<Self, DBError> {
-        let sqlite_db = rusqlite::Connection::open(sqlite_path)
-            .map_err(|e| DBError::Fundamental(format!("Cannot open SQLite: {:?}", e)))?;
+    fn open(sqlite_path: &str) -> anyhow::Result<Self> {
+        let sqlite_db = rusqlite::Connection::open(sqlite_path)?;
 
-        sqlite_db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS commits (
+        sqlite_db.execute(
+            "CREATE TABLE IF NOT EXISTS commits (
                     hash TEXT PRIMARY KEY,
                     prev_commit_hash TEXT,
                     project_id TEXT,
@@ -162,89 +154,70 @@ impl DB for Persistence {
                     header BLOB,
                     blocks_and_pointers BLOB
                 )",
-                [],
-            )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create commits table: {:?}", e)))?;
+            [],
+        )?;
 
-        sqlite_db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS branches (
+        sqlite_db.execute(
+            "CREATE TABLE IF NOT EXISTS branches (
                     name TEXT PRIMARY KEY,
                     tip TEXT
                 )",
-                [],
-            )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create branches table: {:?}", e)))?;
+            [],
+        )?;
 
-        sqlite_db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS remote_branches (
-                    name TEXT PRIMARY KEY,
-                    tip TEXT
-                )",
-                [],
-            )
-            .map_err(|e| {
-                DBError::Fundamental(format!("Cannot create remote_branches table: {:?}", e))
-            })?;
-
-        sqlite_db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS blocks (
+        sqlite_db.execute(
+            "CREATE TABLE IF NOT EXISTS blocks (
                     key TEXT PRIMARY KEY,
                     value BLOB
                 )",
-                [],
-            )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create blocks table: {:?}", e)))?;
+            [],
+        )?;
 
-        sqlite_db
-            .execute(
-                "CREATE TABLE IF NOT EXISTS config (
+        sqlite_db.execute(
+            "CREATE TABLE IF NOT EXISTS config (
                     key TEXT PRIMARY KEY,
                     value TEXT
                 )",
-                [],
-            )
-            .map_err(|e| DBError::Fundamental(format!("Cannot create config table: {:?}", e)))?;
+            [],
+        )?;
 
         Ok(Self { sqlite_db })
     }
 
-    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> Result<(), DBError> {
-        let mut stmt = tx
-            .prepare("INSERT INTO blocks (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO NOTHING")
-            .map_err(|e| DBError::Fundamental(format!("Cannot prepare query: {:?}", e)))?;
+    fn write_blocks(tx: &rusqlite::Transaction, blocks: &[BlockRecord]) -> anyhow::Result<()> {
+        let mut stmt = tx.prepare(
+            "INSERT INTO blocks (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO NOTHING",
+        )?;
 
         for block in blocks {
-            stmt.execute((&block.hash, &block.data))
-                .map_err(|e| DBError::Error(format!("Cannot write block: {:?}", e)))?;
+            stmt.execute((&block.hash, &block.data))?;
         }
 
         Ok(())
     }
 
-    fn read_blocks(&self, hashes: Vec<String>) -> Result<Vec<BlockRecord>, DBError> {
+    fn read_blocks(&self, hashes: Vec<String>) -> anyhow::Result<Vec<BlockRecord>> {
         let mut result: Vec<BlockRecord> = Vec::new();
         for hash in hashes {
-            let block_data = self
-                .sqlite_db
-                .query_row("SELECT value FROM blocks WHERE key = ?1", [&hash], |row| {
-                    Ok(Some(row.get(0).expect("No value in row")))
+            let block_data = self.sqlite_db.query_row(
+                "SELECT value FROM blocks WHERE key = ?1",
+                [&hash],
+                |row| Ok(Some(row.get(0).expect("No value in row"))),
+            )?;
+            if block_data.is_none() {
+                bail!(DBError::Error("No block with hash found".to_owned()))
+            } else {
+                result.push(BlockRecord {
+                    hash,
+                    data: block_data.unwrap(),
                 })
-                .map_err(|e| DBError::Error(format!("Error reading block: {:?}", e)))?
-                .ok_or(DBError::Error("No block with hash found".to_owned()))?;
-
-            result.push(BlockRecord {
-                hash,
-                data: block_data,
-            })
+            }
         }
 
         Ok(result)
     }
 
-    fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> Result<(), DBError> {
+    fn write_commit(tx: &rusqlite::Transaction, commit: Commit) -> anyhow::Result<()> {
         tx.execute(
             "INSERT INTO commits (hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks_and_pointers) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             (
@@ -258,13 +231,12 @@ impl DB for Persistence {
                 commit.header,
                 commit.blocks_and_pointers
             ),
-        )
-        .map_err(|e| DBError::Error(format!("Cannot insert commit object: {:?}", e)))?;
+        ).context("Cannot insert commit object")?;
 
         Ok(())
     }
 
-    fn read_commit(&self, hash: &str) -> Result<Option<Commit>, DBError> {
+    fn read_commit(&self, hash: &str) -> anyhow::Result<Option<Commit>> {
         self.sqlite_db.query_row("SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks_and_pointers FROM commits WHERE hash = ?1", [hash], |row| Ok(Some(Commit {
             hash: row.get(0).expect("No hash found in row"),
             prev_commit_hash: row.get(1).expect("No prev_commit_hash found in row"),
@@ -275,22 +247,18 @@ impl DB for Persistence {
             date: row.get(6).expect("No date found in row"),
             header: row.get(7).expect("No header found in row"),
             blocks_and_pointers: row.get(8).expect("No blocks found in row")
-        }))).map_err(|e| DBError::Error(format!("Cannot read commit: {:?}", e)))
+        }))).context("Cannot read commit")
     }
 
-    fn check_commit_exists(&self, hash: &str) -> Result<bool, DBError> {
+    fn check_commit_exists(&self, hash: &str) -> anyhow::Result<bool> {
         let mut stmt = self
             .sqlite_db
             .prepare("SELECT hash FROM commits WHERE hash = ?1")
-            .map_err(|e| DBError::Error(format!("Cannot create statement: {:?}", e)))?;
+            .context("Cannot create statement")?;
 
-        let mut rows = stmt
-            .query([hash])
-            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
+        let mut rows = stmt.query([hash]).context("Cannot query branch")?;
 
-        let next = rows
-            .next()
-            .map_err(|e| DBError::Error(format!("Cannot get next row: {:?}", e)))?;
+        let next = rows.next()?;
 
         Ok(next.is_some())
     }
@@ -298,7 +266,7 @@ impl DB for Persistence {
     fn read_ancestors_of_commit(
         &self,
         starting_from_hash: &str,
-    ) -> Result<Vec<ShortCommitRecord>, DBError> {
+    ) -> anyhow::Result<Vec<ShortCommitRecord>> {
         let mut stmt = self
             .sqlite_db
             .prepare(
@@ -312,13 +280,11 @@ impl DB for Persistence {
                 SELECT hash, branch, message FROM ancestor_commits ORDER BY date DESC;
                 ",
             )
-            .map_err(|e| {
-                DBError::Fundamental(format!("Cannot prepare read commits query: {:?}", e))
-            })?;
+            .context("Cannot prepare read commits query")?;
 
         let mut rows = stmt
             .query([starting_from_hash])
-            .map_err(|e| DBError::Error(format!("Cannot read commits: {:?}", e)))?;
+            .context("Cannot read commits")?;
 
         let mut result: Vec<ShortCommitRecord> = vec![];
         while let Ok(Some(data)) = rows.next() {
@@ -332,7 +298,7 @@ impl DB for Persistence {
         Ok(result)
     }
 
-    fn read_descendants_of_commit(&self, hash: &str) -> Result<Vec<Commit>, DBError> {
+    fn read_descendants_of_commit(&self, hash: &str) -> anyhow::Result<Vec<Commit>> {
         let mut stmt = self
             .sqlite_db
             .prepare(
@@ -346,13 +312,9 @@ impl DB for Persistence {
                 SELECT hash, prev_commit_hash, project_id, branch, message, author, date, header, blocks_and_pointers FROM descendant_commits ORDER BY date ASC;
                 ",
             )
-            .map_err(|e| {
-                DBError::Fundamental(format!("Cannot prepare read commits query: {:?}", e))
-            })?;
+            .context("Cannot prepare read commits query")?;
 
-        let mut rows = stmt
-            .query([hash])
-            .map_err(|e| DBError::Error(format!("Cannot read commits: {:?}", e)))?;
+        let mut rows = stmt.query([hash]).context("Cannot read commits")?;
 
         let mut result: Vec<Commit> = vec![];
 
@@ -378,41 +340,35 @@ impl DB for Persistence {
         Ok(result)
     }
 
-    fn read_current_branch_name(&self) -> Result<String, DBError> {
-        read_config_inner(&self.sqlite_db, &current_branch_name_key())
-            .map_err(|_| DBError::Error("Cannot read current branch name".to_owned()))
-            .and_then(|v| {
-                v.map_or(
-                    Err(DBError::Consistency(
-                        "Cannot read current branch name".to_owned(),
-                    )),
-                    Ok,
-                )
-            })
+    fn read_current_branch_name(&self) -> anyhow::Result<String> {
+        let current_branch_name = read_config_inner(&self.sqlite_db, &current_branch_name_key())?;
+        if let Some(current_branch_name) = current_branch_name {
+            Ok(current_branch_name)
+        } else {
+            bail!(DBError::Consistency(
+                "Cannot read current branch name".to_owned(),
+            ))
+        }
     }
 
     fn write_current_branch_name(
         tx: &rusqlite::Transaction,
         brach_name: &str,
-    ) -> Result<(), DBError> {
+    ) -> anyhow::Result<()> {
         write_config_inner(tx, &current_branch_name_key(), brach_name)
     }
 
-    fn read_all_branches(&self) -> Result<Vec<String>, DBError> {
+    fn read_all_branches(&self) -> anyhow::Result<Vec<String>> {
         let mut stmt = self
             .sqlite_db
             .prepare("SELECT name FROM branches")
-            .map_err(|e| DBError::Error(format!("Cannot query branches: {:?}", e)))?;
-        let mut rows = stmt
-            .query([])
-            .map_err(|e| DBError::Error(format!("Cannot query branches: {:?}", e)))?;
+            .context("Cannot query branches")?;
+        let mut rows = stmt.query([]).context("Cannot query branches")?;
 
         let mut result: Vec<String> = vec![];
 
         while let Ok(Some(data)) = rows.next() {
-            let name = data.get(0).map_err(|e| {
-                DBError::Fundamental(format!("Branch name not returned in result set: {:?}", e))
-            })?;
+            let name = data.get(0).unwrap();
 
             result.push(name);
         }
@@ -420,24 +376,19 @@ impl DB for Persistence {
         Ok(result)
     }
 
-    fn read_branch_tip(&self, branch_name: &str) -> Result<Option<String>, DBError> {
+    fn read_branch_tip(&self, branch_name: &str) -> anyhow::Result<Option<String>> {
         let mut stmt = self
             .sqlite_db
-            .prepare("SELECT tip FROM branches WHERE name = ?1")
-            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
+            .prepare("SELECT tip FROM branches WHERE name = ?1")?;
 
-        let mut rows = stmt
-            .query([branch_name])
-            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
+        let mut rows = stmt.query([branch_name])?;
 
-        let row = rows.next();
+        let row = rows.next()?;
 
-        if let Ok(Some(data)) = row {
+        if let Some(data) = row {
             Ok(Some(data.get(0).unwrap()))
-        } else if let Ok(None) = row {
-            Ok(None)
         } else {
-            Err(DBError::Error("Cannot query branch".to_owned()))
+            Ok(None)
         }
     }
 
@@ -445,120 +396,73 @@ impl DB for Persistence {
         tx: &rusqlite::Transaction,
         brach_name: &str,
         tip: &str,
-    ) -> Result<(), DBError> {
+    ) -> anyhow::Result<()> {
         tx.execute(
             "INSERT OR REPLACE INTO branches (name, tip) VALUES (?1, ?2)",
             [&brach_name, &tip],
         )
-        .map_err(|e| {
-            DBError::Error(format!(
-                "Cannot create new branch {:?}: {:?}",
-                brach_name, e
-            ))
-        })
+        .context(format!("Cannot create new branch {:?}", brach_name,))
         .map(|_| ())
     }
 
-    fn read_remote_branch_tip(&self, branch_name: &str) -> Result<String, DBError> {
-        let mut stmt = self
-            .sqlite_db
-            .prepare("SELECT tip FROM remote_branches WHERE name = ?1")
-            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
-
-        let mut rows = stmt
-            .query([branch_name])
-            .map_err(|e| DBError::Error(format!("Cannot query branch: {:?}", e)))?;
-
-        let row = rows.next();
-
-        if let Ok(Some(data)) = row {
-            Ok(data.get(0).unwrap())
-        } else if let Ok(None) = row {
-            Err(DBError::Consistency(format!(
-                "No remote branch tip exists for {:?}",
-                branch_name
-            )))
-        } else {
-            Err(DBError::Error("Cannot query branch".to_owned()))
-        }
-    }
-
-    fn write_remote_branch_tip(
-        tx: &rusqlite::Transaction,
-        brach_name: &str,
-        tip: &str,
-    ) -> Result<(), DBError> {
-        tx.execute(
-            "INSERT OR REPLACE INTO remote_branches (name, tip) VALUES (?1, ?2)",
-            [&brach_name, &tip],
-        )
-        .map_err(|e| {
-            DBError::Error(format!(
-                "Cannot create new branch {:?}: {:?}",
-                brach_name, e
-            ))
-        })
-        .map(|_| ())
-    }
-
-    fn read_current_commit_pointer(&self) -> Result<String, DBError> {
-        read_config_inner(&self.sqlite_db, &current_latest_commit_key())
-            .map_err(|_| DBError::Error("Cannot read current commit pointer".to_owned()))
-            .and_then(|v| {
-                v.ok_or(DBError::Consistency(
+    fn read_current_commit_pointer(&self) -> anyhow::Result<String> {
+        read_config_inner(&self.sqlite_db, &current_latest_commit_key()).and_then(|v| {
+            if let Some(v) = v {
+                Ok(v)
+            } else {
+                bail!(DBError::Consistency(
                     "Current commit pointer not set".to_owned(),
                 ))
-            })
+            }
+        })
     }
 
-    fn write_current_commit_pointer(tx: &rusqlite::Transaction, hash: &str) -> Result<(), DBError> {
+    fn write_current_commit_pointer(tx: &rusqlite::Transaction, hash: &str) -> anyhow::Result<()> {
         write_config_inner(tx, &current_latest_commit_key(), hash)
-            .map_err(|e| DBError::Error(format!("Cannot write latest commit hash: {:?}", e)))
+            .context("Cannot write latest commit hash")
     }
 
-    fn execute_in_transaction<F>(&mut self, f: F) -> Result<(), DBError>
+    fn execute_in_transaction<F>(&mut self, f: F) -> anyhow::Result<()>
     where
-        F: FnOnce(&rusqlite::Transaction) -> Result<(), DBError>,
+        F: FnOnce(&rusqlite::Transaction) -> anyhow::Result<()>,
     {
         let tx = self
             .sqlite_db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
-            .map_err(|_| DBError::Fundamental("Cannot create transaction".to_owned()))?;
+            .context("Cannot create transaction")?;
 
         f(&tx)?;
 
-        tx.commit()
-            .map_err(|_| DBError::Fundamental("Cannot commit transaction".to_owned()))
+        tx.commit().context("Cannot commit transaction")
     }
 
-    fn read_project_id(&self) -> Result<String, DBError> {
-        read_config_inner(&self.sqlite_db, &project_id_key())
-            .map_err(|_| DBError::Error("Cannot read project id".to_owned()))
-            .and_then(|v| {
-                v.map_or(
-                    Err(DBError::Fundamental(
-                        "Current project key not set".to_owned(),
-                    )),
-                    Ok,
-                )
-            })
+    fn read_project_id(&self) -> anyhow::Result<String> {
+        let project_id = read_config_inner(&self.sqlite_db, &project_id_key())
+            .context("Cannot read project id")?;
+        if let Some(project_id) = project_id {
+            Ok(project_id)
+        } else {
+            bail!(DBError::Fundamental(
+                "Current project key not set".to_owned(),
+            ))
+        }
     }
 
-    fn write_project_id(tx: &rusqlite::Transaction, project_id: &str) -> Result<(), DBError> {
+    fn write_project_id(tx: &rusqlite::Transaction, project_id: &str) -> anyhow::Result<()> {
         write_config_inner(tx, &project_id_key(), project_id)
     }
 
     fn delete_branch_with_commits(
         tx: &rusqlite::Transaction,
         branch_name: &str,
-    ) -> Result<(), DBError> {
+    ) -> anyhow::Result<()> {
         let mut delete_commits_stmt = tx
             .prepare(
                 "
             DELETE FROM commits WHERE branch = ?1;
             ",
             )
-            .map_err(|e| DBError::Fundamental(format!("Cannot prepare query: {:?}", e)))?;
+            .context("Cannot prepare delete commits of branch query")?;
 
         let mut delete_branch_stmt = tx
             .prepare(
@@ -566,34 +470,34 @@ impl DB for Persistence {
             DELETE FROM branches WHERE name = ?1;
             ",
             )
-            .map_err(|e| DBError::Fundamental(format!("Cannot prepare query: {:?}", e)))?;
+            .context("Cannot prepare delete branch query")?;
 
         delete_commits_stmt
             .execute([branch_name])
-            .map_err(|e| DBError::Error(format!("Cannot execute statement: {:?}", e)))?;
+            .context("Cannot execute delete commits query")?;
 
         delete_branch_stmt
             .execute([branch_name])
-            .map_err(|e| DBError::Error(format!("Cannot execute statement: {:?}", e)))?;
+            .context("Cannot execute branch query")?;
 
         Ok(())
     }
 
-    fn read_name(&self) -> Result<Option<String>, DBError> {
+    fn read_name(&self) -> anyhow::Result<Option<String>> {
         read_config_inner(&self.sqlite_db, &user_name_key())
     }
 
-    fn write_name(tx: &rusqlite::Transaction, name: &str) -> Result<(), DBError> {
+    fn write_name(tx: &rusqlite::Transaction, name: &str) -> anyhow::Result<()> {
         write_config_inner(tx, &user_name_key(), name)
     }
 
-    fn read_last_modification_time(&self) -> Result<Option<i64>, DBError> {
+    fn read_last_modification_time(&self) -> anyhow::Result<Option<i64>> {
         let raw = read_config_inner(&self.sqlite_db, &last_mod_time_key())?;
         if let Some(raw) = raw {
             return raw
                 .parse::<i64>()
                 .map(Some)
-                .map_err(|e| DBError::Error(format!("Cannot parse timestamp from string: {}", e)));
+                .context("Cannot parse timestamp from string");
         }
 
         Ok(None)
@@ -602,7 +506,7 @@ impl DB for Persistence {
     fn write_last_modifiction_time(
         tx: &rusqlite::Transaction,
         last_mod_time: i64,
-    ) -> Result<(), DBError> {
+    ) -> anyhow::Result<()> {
         write_config_inner(tx, &last_mod_time_key(), &last_mod_time.to_string())
     }
 }

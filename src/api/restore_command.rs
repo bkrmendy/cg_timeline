@@ -1,5 +1,6 @@
 use std::{io::Write, iter::zip, time::Instant};
 
+use anyhow::{bail, Context};
 use flate2::write::GzDecoder;
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 
@@ -16,15 +17,22 @@ use crate::{
     measure_time,
 };
 
-pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<(), DBError> {
+pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> anyhow::Result<()> {
     let restore_command_timer = Instant::now();
 
     let mut conn = Persistence::open(db_path)?;
 
     let commit = measure_time!(format!("Reading commit {:?}", hash), {
-        conn.read_commit(hash)?
-            .ok_or(DBError::Consistency("no such commit found".to_owned()))
-    })?;
+        conn.read_commit(hash)
+            .context(format!("Cannot read commit with hash: {hash}"))?
+    });
+
+    if commit.is_none() {
+        bail!(DBError::Consistency(format!(
+            "Can't find commit with hash: {hash}"
+        )));
+    }
+    let commit = commit.unwrap();
 
     let block_meta = measure_time!(format!("Reading blocks {:?}", hash), {
         parse_blocks_and_pointers(&commit.blocks_and_pointers)
@@ -39,7 +47,7 @@ pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<
 
             let blocks_minus_pointers: Vec<Vec<u8>> = conn
                 .read_blocks(block_hashes)
-                .map_err(|_| DBError::Error("Cannot read block hashes".to_owned()))?
+                .context("Cannot read block hashes")?
                 .par_iter()
                 .map(|record| {
                     let mut writer = Vec::new();
@@ -68,8 +76,7 @@ pub fn restore_checkpoint(file_path: &str, db_path: &str, hash: &str) -> Result<
     print_blend(BlendFileWithPointerData { header, blocks }, &mut out);
 
     measure_time!(format!("Writing file {:?}", hash), {
-        to_file_transactional(file_path, out, b"ENDB".to_vec())
-            .map_err(|_| DBError::Fundamental("Cannot write to file".to_owned()))?;
+        to_file_transactional(file_path, out, b"ENDB".to_vec()).context("Cannot write to file")?
     });
 
     conn.execute_in_transaction(|tx| {

@@ -106,7 +106,6 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
 
     db.execute_in_transaction(|tx| {
         Persistence::write_blocks(tx, &block_records).expect("cannot write blocks");
-        Persistence::write_remote_branch_tip(tx, MAIN_BRANCH_NAME, &last_commit_hash)?;
         Persistence::write_project_id(tx, &simple_timeline.project_id)?;
         Ok(())
     })

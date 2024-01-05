@@ -23,9 +23,12 @@ use std::{fs, io::Write};
 pub fn read_latest_commit_hash_on_branch(
     conn: &Persistence,
     branch_name: &str,
-) -> Result<String, DBError> {
-    conn.read_branch_tip(branch_name)
-        .and_then(|tip| tip.ok_or(DBError::Error("Branch tip does not exist".to_owned())))
+) -> anyhow::Result<String> {
+    conn.read_branch_tip(branch_name).and_then(|tip| {
+        tip.ok_or(anyhow::Error::new(DBError::Error(
+            "Branch tip does not exist".to_owned(),
+        )))
+    })
 }
 
 pub fn get_file_mod_time(file_path: &str) -> Result<i64, DBError> {

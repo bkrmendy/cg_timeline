@@ -1,15 +1,17 @@
+use anyhow::bail;
+
 use crate::db::db_ops::{DBError, Persistence, DB};
 
 use super::restore_command::restore_checkpoint;
 
-pub fn switch_branches(db_path: &str, branch_name: &str, file_path: &str) -> Result<(), DBError> {
+pub fn switch_branches(db_path: &str, branch_name: &str, file_path: &str) -> anyhow::Result<()> {
     let hash = {
         let mut db = Persistence::open(db_path)?;
 
         let tip = db.read_branch_tip(branch_name)?;
 
         if tip.is_none() {
-            return Err(DBError::Consistency(
+            bail!(DBError::Consistency(
                 "Branch has no corresponding tip".to_owned(),
             ));
         }

@@ -1,17 +1,14 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use crate::{
-    api::{
-        blend_file_from_timeline_command, create_new_checkpoint_command::create_new_checkpoint,
-        get_current_branch::get_current_branch, get_current_commit::get_current_commit,
-        init_command::init_db, list_branches_command::list_braches,
-        log_checkpoints_command::list_checkpoints, new_branch_command::create_new_branch,
-        restore_command, switch_command::switch_branches,
-    },
-    db::db_ops::DBError,
+use crate::api::{
+    blend_file_from_timeline_command, create_new_checkpoint_command::create_new_checkpoint,
+    get_current_branch::get_current_branch, get_current_commit::get_current_commit,
+    init_command::init_db, list_branches_command::list_braches,
+    log_checkpoints_command::list_checkpoints, new_branch_command::create_new_branch,
+    restore_command, switch_command::switch_branches,
 };
 
 #[derive(Serialize)]
@@ -58,9 +55,7 @@ pub enum FFIError {
     SerializationError,
 }
 
-fn from_db_error(e: DBError) -> FFIError {
-    FFIError::InternalError(e.to_string())
-}
+impl Error for FFIError {}
 
 impl Display for FFIError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -75,24 +70,20 @@ impl Display for FFIError {
 struct DBPath<'a>(&'a str);
 struct PathToBlend<'a>(&'a str);
 
-fn connect_command(
-    db_path: DBPath,
-    path_to_blend: PathToBlend,
-) -> Result<ConnectResponse, FFIError> {
+fn connect_command(db_path: DBPath, path_to_blend: PathToBlend) -> anyhow::Result<ConnectResponse> {
     let exists = std::path::Path::new(&db_path.0).exists();
 
     if !exists {
         let project_id = uuid::Uuid::new_v4().to_string();
 
-        init_db(db_path.0, &project_id, path_to_blend.0).map_err(from_db_error)?;
+        init_db(db_path.0, &project_id, path_to_blend.0)?;
     }
 
-    let branches = list_braches(db_path.0).map_err(from_db_error)?;
-    let current_branch_name = get_current_branch(db_path.0).map_err(from_db_error)?;
+    let branches = list_braches(db_path.0)?;
+    let current_branch_name = get_current_branch(db_path.0)?;
     let checkpoints_on_this_branch = list_checkpoints(db_path.0, &current_branch_name)
-        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())
-        .map_err(from_db_error)?;
-    let current_checkpoint_hash = get_current_commit(db_path.0).map_err(from_db_error)?;
+        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())?;
+    let current_checkpoint_hash = get_current_commit(db_path.0)?;
 
     Ok(ConnectResponse {
         branches,
@@ -106,15 +97,13 @@ fn create_checkpoint(
     db_path: DBPath,
     path_to_blend: PathToBlend,
     message: &str,
-) -> Result<CreateCheckpointResponse, FFIError> {
-    create_new_checkpoint(path_to_blend.0, db_path.0, Some(message.to_string()))
-        .map_err(from_db_error)?;
+) -> anyhow::Result<CreateCheckpointResponse> {
+    create_new_checkpoint(path_to_blend.0, db_path.0, Some(message.to_string()))?;
 
-    let current_branch_name = get_current_branch(db_path.0).map_err(from_db_error)?;
+    let current_branch_name = get_current_branch(db_path.0)?;
     let checkpoints_on_this_branch = list_checkpoints(db_path.0, &current_branch_name)
-        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())
-        .map_err(from_db_error)?;
-    let current_checkpoint_hash = get_current_commit(db_path.0).map_err(from_db_error)?;
+        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())?;
+    let current_checkpoint_hash = get_current_commit(db_path.0)?;
 
     Ok(CreateCheckpointResponse {
         checkpoints_on_this_branch,
@@ -126,9 +115,9 @@ fn restore_checkpoint(
     db_path: DBPath,
     path_to_blend: PathToBlend,
     hash: &str,
-) -> Result<RestoreCheckpointResponse, FFIError> {
-    restore_command::restore_checkpoint(path_to_blend.0, db_path.0, hash).map_err(from_db_error)?;
-    let current_checkpoint_hash = get_current_commit(db_path.0).map_err(from_db_error)?;
+) -> anyhow::Result<RestoreCheckpointResponse> {
+    restore_command::restore_checkpoint(path_to_blend.0, db_path.0, hash)?;
+    let current_checkpoint_hash = get_current_commit(db_path.0)?;
     Ok(RestoreCheckpointResponse {
         current_checkpoint_hash,
     })
@@ -137,10 +126,10 @@ fn restore_checkpoint(
 fn switch_to_new_branch(
     db_path: DBPath,
     branch_name: &str,
-) -> Result<SwitchToNewBranchResponse, FFIError> {
-    create_new_branch(db_path.0, branch_name).map_err(from_db_error)?;
-    let branches = list_braches(db_path.0).map_err(from_db_error)?;
-    let current_branch_name = get_current_branch(db_path.0).map_err(from_db_error)?;
+) -> anyhow::Result<SwitchToNewBranchResponse> {
+    create_new_branch(db_path.0, branch_name)?;
+    let branches = list_braches(db_path.0)?;
+    let current_branch_name = get_current_branch(db_path.0)?;
 
     Ok(SwitchToNewBranchResponse {
         branches,
@@ -152,13 +141,12 @@ fn switch_to_branch(
     db_path: DBPath,
     path_to_blend: PathToBlend,
     branch_name: &str,
-) -> Result<SwitchBranchResponse, FFIError> {
-    switch_branches(db_path.0, branch_name, path_to_blend.0).map_err(from_db_error)?;
-    let current_branch_name = get_current_branch(db_path.0).map_err(from_db_error)?;
+) -> anyhow::Result<SwitchBranchResponse> {
+    switch_branches(db_path.0, branch_name, path_to_blend.0)?;
+    let current_branch_name = get_current_branch(db_path.0)?;
     let checkpoints_on_this_branch = list_checkpoints(db_path.0, &current_branch_name)
-        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())
-        .map_err(from_db_error)?;
-    let current_checkpoint_hash = get_current_commit(db_path.0).map_err(from_db_error)?;
+        .map(|commits| commits.into_iter().map(|c| (c.hash, c.message)).collect())?;
+    let current_checkpoint_hash = get_current_commit(db_path.0)?;
 
     Ok(SwitchBranchResponse {
         current_branch_name,
@@ -167,19 +155,18 @@ fn switch_to_branch(
     })
 }
 
-fn blend_file_from_timeline(db_path: DBPath) -> Result<BlendFileFromTimelineResponse, FFIError> {
-    let restored_file_path = blend_file_from_timeline_command::blend_file_from_timeline(db_path.0)
-        .map_err(from_db_error)?;
+fn blend_file_from_timeline(db_path: DBPath) -> anyhow::Result<BlendFileFromTimelineResponse> {
+    let restored_file_path = blend_file_from_timeline_command::blend_file_from_timeline(db_path.0)?;
     Ok(BlendFileFromTimelineResponse { restored_file_path })
 }
 
 type JsonObject = Map<String, Value>;
 
-fn get_string_value<'a>(value: &'a JsonObject, key: &'a str) -> Result<&'a str, FFIError> {
+fn get_string_value<'a>(value: &'a JsonObject, key: &'a str) -> anyhow::Result<&'a str> {
     value
         .get(key)
         .and_then(|c| c.as_str())
-        .ok_or(FFIError::MalformedMessage(format!("{} not in object", key)))
+        .ok_or(FFIError::MalformedMessage(format!("{} not in object", key)).into())
 }
 
 pub fn error_json(error: FFIError) -> Value {
@@ -191,7 +178,7 @@ pub fn error_json(error: FFIError) -> Value {
     serde_json::Value::Object(object)
 }
 
-pub fn do_command(value: Value) -> Result<String, FFIError> {
+pub fn do_command(value: Value) -> anyhow::Result<String> {
     let value = value.as_object().ok_or(FFIError::MalformedMessage(
         "Payload should be an object".to_string(),
     ))?;
@@ -203,7 +190,8 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let path_to_blend = get_string_value(value, "path_to_blend")?;
 
             let result = connect_command(DBPath(db_path), PathToBlend(path_to_blend))?;
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
         "create-checkpoint" => {
@@ -212,7 +200,8 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let message = get_string_value(value, "message")?;
 
             let result = create_checkpoint(DBPath(db_path), PathToBlend(path_to_blend), message)?;
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
         "restore-checkpoint" => {
@@ -221,7 +210,8 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let hash = get_string_value(value, "hash")?;
 
             let result = restore_checkpoint(DBPath(db_path), PathToBlend(path_to_blend), hash)?;
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
         "switch-to-new-branch" => {
@@ -229,7 +219,8 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let branch_name = get_string_value(value, "branch_name")?;
 
             let result = switch_to_new_branch(DBPath(db_path), branch_name)?;
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
         "switch-to-branch" => {
@@ -240,19 +231,23 @@ pub fn do_command(value: Value) -> Result<String, FFIError> {
             let result =
                 switch_to_branch(DBPath(db_path), PathToBlend(path_to_blend), branch_name)?;
 
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
         "blend-file-from-timeline" => {
             let db_path = get_string_value(value, "db_path")?;
             let result = blend_file_from_timeline(DBPath(db_path))?;
-            serde_json::to_string(&result).map_err(|_| FFIError::SerializationError)
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
         }
 
-        c => serde_json::to_string(&error_json(FFIError::InternalError(format!(
-            "Command {} not implemented",
-            c
-        ))))
-        .map_err(|_| FFIError::SerializationError),
+        c => {
+            let resp = serde_json::to_string(&error_json(FFIError::InternalError(format!(
+                "Command {} not implemented",
+                c
+            ))))?;
+            Ok(resp)
+        }
     }
 }

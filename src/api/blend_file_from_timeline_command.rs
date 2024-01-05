@@ -1,15 +1,19 @@
+use anyhow::bail;
+
 use crate::db::db_ops::{DBError, Persistence, DB};
 use std::path::Path;
 
 use super::restore_command::restore_checkpoint;
 
-pub fn blend_file_from_timeline(db_path: &str) -> Result<String, DBError> {
+pub fn blend_file_from_timeline(db_path: &str) -> anyhow::Result<String> {
     let conn = Persistence::open(db_path)?;
-    let tip = conn
-        .read_branch_tip("main")?
-        .ok_or(DBError::Consistency(String::from(
+    let tip = conn.read_branch_tip("main")?;
+    if tip.is_none() {
+        bail!(DBError::Consistency(String::from(
             "timeline has no main branch",
-        )))?;
+        )))
+    }
+    let tip = tip.unwrap();
 
     let path = Path::new(db_path);
     // TODO: should check if the filename ends in .blend
