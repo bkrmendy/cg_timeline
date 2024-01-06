@@ -13,7 +13,7 @@ pub fn delete_branch(db_path: &str, branch_name: &str) -> anyhow::Result<()> {
     }
 
     if current_branch_name == branch_name {
-        bail!(DBError::Error("Cannot delete current branch".to_owned()));
+        bail!(DBError::Error("Cannot delete the currently active branch".to_owned()));
     }
 
     let branch = db.read_branch_tip(branch_name)?;

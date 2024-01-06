@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::api::{
     blend_file_from_timeline_command, create_new_checkpoint_command::create_new_checkpoint,
-    get_current_branch::get_current_branch, get_current_commit::get_current_commit,
+    delete_branch, get_current_branch::get_current_branch, get_current_commit::get_current_commit,
     init_command::init_db, list_branches_command::list_braches,
     log_checkpoints_command::list_checkpoints, new_branch_command::create_new_branch,
     restore_command, switch_command::switch_branches,
@@ -46,6 +46,11 @@ pub struct SwitchBranchResponse {
 #[derive(Serialize)]
 pub struct BlendFileFromTimelineResponse {
     pub restored_file_path: String,
+}
+
+#[derive(Serialize)]
+pub struct DeleteBranchResponse {
+    pub branches: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -160,6 +165,12 @@ fn blend_file_from_timeline(db_path: DBPath) -> anyhow::Result<BlendFileFromTime
     Ok(BlendFileFromTimelineResponse { restored_file_path })
 }
 
+fn delete_branch(db_path: DBPath, branch_name: &str) -> anyhow::Result<DeleteBranchResponse> {
+    delete_branch::delete_branch(db_path.0, branch_name)?;
+    let branches = list_braches(db_path.0)?;
+    Ok(DeleteBranchResponse { branches })
+}
+
 type JsonObject = Map<String, Value>;
 
 fn get_string_value<'a>(value: &'a JsonObject, key: &'a str) -> anyhow::Result<&'a str> {
@@ -238,6 +249,14 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
         "blend-file-from-timeline" => {
             let db_path = get_string_value(value, "db_path")?;
             let result = blend_file_from_timeline(DBPath(db_path))?;
+            let s = serde_json::to_string(&result)?;
+            Ok(s)
+        }
+
+        "delete-branch" => {
+            let db_path = get_string_value(value, "db_path")?;
+            let branch_name = get_string_value(value, "branch_name")?;
+            let result = delete_branch(DBPath(db_path), branch_name)?;
             let s = serde_json::to_string(&result)?;
             Ok(s)
         }

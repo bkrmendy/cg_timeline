@@ -244,6 +244,38 @@ class NewBranchOperator(bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+class DeleteBranchOperator(bpy.types.Operator):
+    """Delete branch"""
+    bl_idname = "wm.delete_branch_operator"
+    bl_label = "Delete Branch"
+
+    name: bpy.props.StringProperty(name="Branch name", default="")
+
+    def execute(self, context):
+        with WaitCursor():
+            file_path = get_file_path()
+
+            result = call_lib({
+                'command': 'delete-branch',
+                'db_path': get_db_path(file_path),
+                'branch_name': str(self.name)
+            })
+
+            if 'error' in result:
+                self.report({'ERROR'}, str(result))
+                return {'FINISHED'}
+
+            global BRANCH_ITEMS
+            BRANCH_ITEMS = result['branches']
+
+            set_branches_checkpoints_from_state(context)
+
+            return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 class CheckpointItem(bpy.types.PropertyGroup):
     hash: bpy.props.StringProperty(name="Hash", default="")
     message: bpy.props.StringProperty(name="Message", default="")
@@ -385,8 +417,12 @@ class BranchesList(bpy.types.UIList):
         global CURRENT_BRANCH
         icon = CHECKMARK_ICON if item.name == CURRENT_BRANCH else BLANK_ICON
         row.label(text=item.name, icon=icon)
-        row.operator(SwitchBranchesOperator.bl_idname,
-                     text="Switch to").name = item.name
+        switch_branches_op = row.operator(SwitchBranchesOperator.bl_idname,
+                                          text="Switch to")
+        switch_branches_op.name = item.name
+        delete_branch_op = row.operator(DeleteBranchOperator.bl_idname,
+                                        text="", icon="X")
+        delete_branch_op.name = item.name
 
 
 class TimelinePanel(bpy.types.Panel):
@@ -444,6 +480,7 @@ def register():
     bpy.utils.register_class(BlendFileFromTimelineOperator)
     bpy.utils.register_class(SwitchBranchesOperator)
     bpy.utils.register_class(NewBranchOperator)
+    bpy.utils.register_class(DeleteBranchOperator)
     bpy.utils.register_class(CheckpointItem)
     bpy.utils.register_class(BranchItem)
     bpy.utils.register_class(RestoreOperator)
@@ -477,6 +514,7 @@ def unregister():
     bpy.utils.unregister_class(BlendFileFromTimelineOperator)
     bpy.utils.unregister_class(SwitchBranchesOperator)
     bpy.utils.unregister_class(NewBranchOperator)
+    bpy.utils.unregister_class(DeleteBranchOperator)
     bpy.utils.unregister_class(CheckpointItem)
     bpy.utils.unregister_class(BranchItem)
     bpy.utils.unregister_class(RestoreOperator)

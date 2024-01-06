@@ -1,7 +1,9 @@
 extern crate timeline;
-use timeline::api::blend_file_from_timeline_command;
+use anyhow::Context;
+use timeline::api::delete_branch;
 
-fn main() {
-    blend_file_from_timeline_command::blend_file_from_timeline("data/untitled.blend.timeline")
-        .unwrap();
+fn main() -> anyhow::Result<()> {
+    delete_branch::delete_branch("data/untitled_3.blend.timeline", "hello")
+        .context("Cannot delete branch")?;
+    Ok(())
 }
