@@ -1,26 +1,66 @@
-# Parser-printer
+# Timeline (beta)
 
-This crate contains the basic building blocks for this tool.
+> TODO: demo gif
 
-## TODO
+## TLDR
 
-Things that we want to implement for sure, the question is more about when, not if
+Timeline is a Blender addon for maintaining multiple versions of the same project.
+These can be either parallel versions ("branches") or the versions can build on each
+other ("checkpoints").
 
-- [ ] streaming parsing/printing
-- [ ] basic conflict resolution
+In other words, Timeline is a very basic version control tool tailored to Blender.
 
-### Done
+## Table of Contents
 
-- [x] Create lib.rs for the parser/printer stuff, and move JSON to an examples file
-- [x] branching
-- [x] Combinator that fails if the rest of the input is not empty (`complete` in `nom`?)
-  - Strangely makes the parser fail, but the blend file is OK? It needs investigation; maybe unused data is dumped after the `ENDB` marker?
-- [x] Parsing/printing blender files using the same schema description
-- [x] Simple commit and checkout operations
+> TODO
 
-## "Research" ideas
+## Installation
 
-These ideas might not be worth the effort but could be interesting.
+> TODO
 
-- [ ] A printer that consumes the input (Would this require code duplication? How much?)
-- [ ] Continuation passing style to eliminate copying in the printer?
+## Overview
+
+Timelines are built on two main concepts: checkpoints and branches.
+
+A checkpoint is a snapshot of the Blend file at a given point in time.
+
+A branch is a list of checkpoints, ordered from oldest to newest. Each timeline
+has a `main` branch, which cannot be deleted.
+
+## Connecting to the Timeline
+
+When you open a Blend file, you have to connect to the Timeline. To connect,
+click `Connect to Timeline` in the Timeline section. This will either create
+a new timeline DB for the Blender project or connect to an existing one. The
+name of the timeline DB for a blend file is the same as the name of the blend
+file with `.timeline` appended (ie., if you have a file called `character.blend`,
+the timeline DB will be called `character.blend.timeline`).
+
+> If you rename a Blend file that has a timeline DB, you have to rename the timeline
+> DB too! Otherwise, the timeline addon will create a brand-new timeline DB,
+> instead of using the original one.
+
+You can also generate a Blend file from a timeline DB. To do this, click
+`Generate .blend file from Timeline` (below `Connect to Timeline`). This will
+create a new Blend file from the latest checkpoint of the `main` branch in the
+chosen timeline DB, and load that file in Blender.
+
+## Creating checkpoints
+
+> TODO
+
+## Restoring checkpoints
+
+> TODO
+
+## Creating branches
+
+> TODO
+
+## Switching branches
+
+> TODO
+
+## Deleting branches
+
+> TODO
