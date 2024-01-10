@@ -1,5 +1,7 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, io::Write, path::Path, time::SystemTime};
 
+use chrono::{DateTime, Utc};
+use file_rotate::{compression::Compression, suffix::AppendCount, ContentLimit, FileRotate};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -74,6 +76,25 @@ impl Display for FFIError {
 
 struct DBPath<'a>(&'a str);
 struct PathToBlend<'a>(&'a str);
+
+fn log_op(db_path: &str, operation: &str) -> anyhow::Result<()> {
+    let log_path = Path::new(db_path).join("log");
+    let mut log = FileRotate::new(
+        log_path,
+        AppendCount::new(1),
+        ContentLimit::Lines(1000),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    );
+
+    let now = SystemTime::now();
+    let now: DateTime<Utc> = now.into();
+    let now = now.to_rfc3339();
+
+    writeln!(log, "{now} {operation}")?;
+    Ok(())
+}
 
 fn connect_command(db_path: DBPath, path_to_blend: PathToBlend) -> anyhow::Result<ConnectResponse> {
     let exists = std::path::Path::new(&db_path.0).exists();
@@ -202,6 +223,7 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
 
             let result = connect_command(DBPath(db_path), PathToBlend(path_to_blend))?;
             let s = serde_json::to_string(&result)?;
+            log_op(db_path, "connect")?;
             Ok(s)
         }
 
@@ -212,6 +234,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
 
             let result = create_checkpoint(DBPath(db_path), PathToBlend(path_to_blend), message)?;
             let s = serde_json::to_string(&result)?;
+            let log_message = format!("create-checkpoint {message}");
+            log_op(db_path, &log_message)?;
             Ok(s)
         }
 
@@ -222,6 +246,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
 
             let result = restore_checkpoint(DBPath(db_path), PathToBlend(path_to_blend), hash)?;
             let s = serde_json::to_string(&result)?;
+            let message = format!("restore-checkpoint {hash}");
+            log_op(db_path, &message)?;
             Ok(s)
         }
 
@@ -231,6 +257,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
 
             let result = switch_to_new_branch(DBPath(db_path), branch_name)?;
             let s = serde_json::to_string(&result)?;
+            let message = format!("switch-to-new-branch {branch_name}");
+            log_op(db_path, &message)?;
             Ok(s)
         }
 
@@ -243,6 +271,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
                 switch_to_branch(DBPath(db_path), PathToBlend(path_to_blend), branch_name)?;
 
             let s = serde_json::to_string(&result)?;
+            let message = format!("switch-to-branch {branch_name}");
+            log_op(db_path, &message)?;
             Ok(s)
         }
 
@@ -250,6 +280,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
             let db_path = get_string_value(value, "db_path")?;
             let result = blend_file_from_timeline(DBPath(db_path))?;
             let s = serde_json::to_string(&result)?;
+            let message = format!("blend-file-from-timeline {db_path}");
+            log_op(db_path, &message)?;
             Ok(s)
         }
 
@@ -258,6 +290,8 @@ pub fn do_command(value: Value) -> anyhow::Result<String> {
             let branch_name = get_string_value(value, "branch_name")?;
             let result = delete_branch(DBPath(db_path), branch_name)?;
             let s = serde_json::to_string(&result)?;
+            let message = format!("delete-branch {db_path}");
+            log_op(db_path, &message)?;
             Ok(s)
         }
 
