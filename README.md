@@ -1,4 +1,4 @@
-https://github.com/bkrmendy/cg_timeline/actions/workflows/rust.yml/badge.svg
+![main](https://github.com/bkrmendy/cg_timeline/actions/workflows/rust.yml/badge.svg)
 
 # Timeline (beta)
 
