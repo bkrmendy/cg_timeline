@@ -1,3 +1,5 @@
+https://github.com/OWNER/REPOSITORY/actions/workflows/rust.yml/badge.svg
+
 # Timeline (beta)
 
 > TODO: demo gif
