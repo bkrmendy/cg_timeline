@@ -16,7 +16,6 @@ pub fn blend_file_from_timeline(db_path: &str) -> anyhow::Result<String> {
     let tip = tip.unwrap();
 
     let path = Path::new(db_path);
-    // TODO: should check if the filename ends in .blend
     let dir = path.parent().unwrap();
     let file_name = path
         .file_stem()
