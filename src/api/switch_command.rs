@@ -57,25 +57,29 @@ mod test {
         let branches = db.read_all_branches().unwrap();
 
         // no new branch is added
-        assert_eq!(branches, vec!["main"]);
+        insta::assert_debug_snapshot!(branches, @r###"
+        [
+            "main",
+        ]
+        "###);
 
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
 
         // tip of main stays the same
-        assert_eq!(main_tip, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
+        insta::assert_debug_snapshot!(main_tip, @r###""74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d""###);
 
         let current_branch_name = db
             .read_current_branch_name()
             .expect("Cannot read current branch name");
 
         // The current branch name stays the same
-        assert_eq!(current_branch_name, "main");
+        insta::assert_debug_snapshot!(&current_branch_name, @r###""main""###);
 
         let latest_commit_hash = read_latest_commit_hash_on_branch(&db, &current_branch_name)
             .expect("Cannot read latest commit");
 
         // The latest commit hash stays the same
-        assert_eq!(latest_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
+        insta::assert_debug_snapshot!(latest_commit_hash, @r###""74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d""###);
     }
 
     #[test]
@@ -109,11 +113,11 @@ mod test {
         assert_eq!(current_branch_name, MAIN_BRANCH_NAME);
 
         // latest commit hash is set to the tip of the checked out branch
-        let lastest_commit_hash =
+        let latest_commit_hash =
             read_latest_commit_hash_on_branch(&db, &current_branch_name).unwrap();
-        assert_eq!(lastest_commit_hash, "b637ec695e10bed0ce06279d1dc46717");
+        insta::assert_debug_snapshot!(latest_commit_hash, @r###""94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84""###);
 
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
-        assert_eq!(lastest_commit_hash, main_tip);
+        assert_eq!(latest_commit_hash, main_tip);
     }
 }

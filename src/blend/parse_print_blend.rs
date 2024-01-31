@@ -381,6 +381,7 @@ fn count_from_dimensions(dims: &[usize]) -> usize {
 
 pub type OffsetsWithPointerValue = Vec<(usize, Either<u32, u64>)>;
 
+#[derive(Debug, Clone)]
 pub struct BlockContentWithPointers {
     pub simple_block: SimpleParsedBlock,
     pub original_mem_address: Either<u32, u64>,
@@ -499,6 +500,7 @@ pub fn restore_block(
     block
 }
 
+#[derive(Debug, Clone)]
 pub struct BlendFileWithPointerData {
     pub header: Header,
     pub blocks: Vec<BlockContentWithPointers>,

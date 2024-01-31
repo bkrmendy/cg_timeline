@@ -3,6 +3,7 @@ use std::{error::Error, fmt::Display};
 
 use super::structs::{BlockRecord, Commit};
 
+#[derive(Debug)]
 pub struct ShortCommitRecord {
     pub hash: String,
     pub branch: String,

@@ -111,12 +111,32 @@ mod test {
         test_utils::commit(tmp_path, "Commit", "data/fixtures/untitled_2.blend");
         test_utils::commit(tmp_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
+        insta::assert_debug_snapshot!(test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME), @r###"
+        [
+            ShortCommitRecord {
+                hash: "5e0e611ae1c01a131edd79b57d96d9ca4714a823a567c5fa73f3a973503aa0f6c660f2570ea5d9c04942a3e4ab34d35f71598be62e1cb8a7a40b4826aac4009c",
+                branch: "main",
+                message: "Commit 2",
+            },
+            ShortCommitRecord {
+                hash: "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84",
+                branch: "main",
+                message: "Commit",
+            },
+            ShortCommitRecord {
+                hash: "74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d",
+                branch: "main",
+                message: "Initial checkpoint",
+            },
+        ]
+        "###);
+
         let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
 
         restore_checkpoint(
             tmp_blend_path.path().to_str().unwrap(),
             tmp_path,
-            "b637ec695e10bed0ce06279d1dc46717",
+            "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84",
         )
         .expect("Cannot restore checkpoint");
 
@@ -140,10 +160,10 @@ mod test {
             .expect("Cannot read latest commit");
 
         // The latest commit hash is updated to the hash of the restored commit
-        assert_eq!(latest_commit_hash, "b637ec695e10bed0ce06279d1dc46717");
+        assert_eq!(latest_commit_hash, "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84");
 
         // The tip of `main` stays the same
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
-        assert_eq!(main_tip, "d9e8eb09f8270ad5326de946d951433a");
+        assert_eq!(main_tip, "5e0e611ae1c01a131edd79b57d96d9ca4714a823a567c5fa73f3a973503aa0f6c660f2570ea5d9c04942a3e4ab34d35f71598be62e1cb8a7a40b4826aac4009c");
     }
 }

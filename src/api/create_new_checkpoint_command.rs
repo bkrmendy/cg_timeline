@@ -137,12 +137,17 @@ mod test {
             1
         );
 
-        assert_eq!(
-            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME)
-                .get(0)
-                .unwrap()
-                .hash,
-            "5bdd30ea8c1523bc75eddbcb1e59e4c7"
+        insta::assert_debug_snapshot!(
+            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME),
+                @r###"
+        [
+            ShortCommitRecord {
+                hash: "74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d",
+                branch: "main",
+                message: "Initial checkpoint",
+            },
+        ]
+        "###
         );
 
         create_new_checkpoint(
@@ -153,26 +158,36 @@ mod test {
         .unwrap();
 
         // Creates exactly one commit
-        assert_eq!(
-            test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME).len(),
-            2
-        );
+        insta::assert_debug_snapshot!(test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME), @r###"
+        [
+            ShortCommitRecord {
+                hash: "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84",
+                branch: "main",
+                message: "Initial checkpoint",
+            },
+            ShortCommitRecord {
+                hash: "74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d",
+                branch: "main",
+                message: "Initial checkpoint",
+            },
+        ]
+        "###);
 
         let db = Persistence::open(tmp_path).expect("Cannot open test DB");
 
         let commit = db
-            .read_commit("b637ec695e10bed0ce06279d1dc46717")
+            .read_commit("94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84")
             .unwrap()
             .unwrap();
 
         // commit.blocks omitted, too long
         // commit.date omitted, not stable
         // commit.header omitted, not interesting enough
-        assert_eq!(commit.author, "Anon");
+        assert_eq!(commit.author, "");
         assert_eq!(commit.branch, MAIN_BRANCH_NAME);
-        assert_eq!(commit.hash, "b637ec695e10bed0ce06279d1dc46717");
+        assert_eq!(commit.hash, "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84");
         assert_eq!(commit.message, "Initial checkpoint");
-        assert_eq!(commit.prev_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
+        assert_eq!(commit.prev_commit_hash, "74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d");
         assert_eq!(commit.project_id, "my-cool-project");
 
         let current_branch_name = db
@@ -186,11 +201,11 @@ mod test {
             .expect("Cannot read latest commit");
 
         // The latest commit hash is updated to the hash of the new commit
-        assert_eq!(latest_commit_hash, "b637ec695e10bed0ce06279d1dc46717");
+        assert_eq!(latest_commit_hash, "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84");
 
         // The tip of `main` is updated to the hash of the new commit
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
-        assert_eq!(main_tip, "b637ec695e10bed0ce06279d1dc46717");
+        assert_eq!(main_tip, "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84");
     }
 
     #[test]
@@ -218,17 +233,18 @@ mod test {
             3
         );
 
-        assert_eq!(
+        insta::assert_debug_snapshot!(
             test_utils::list_checkpoints(tmp_path, MAIN_BRANCH_NAME)
                 .into_iter()
                 .map(|c| c.hash)
                 .collect::<Vec<String>>(),
-            vec![
-                // latest first
-                "d9e8eb09f8270ad5326de946d951433a",
-                "b637ec695e10bed0ce06279d1dc46717",
-                "5bdd30ea8c1523bc75eddbcb1e59e4c7"
-            ]
+            @r###"
+        [
+            "5e0e611ae1c01a131edd79b57d96d9ca4714a823a567c5fa73f3a973503aa0f6c660f2570ea5d9c04942a3e4ab34d35f71598be62e1cb8a7a40b4826aac4009c",
+            "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84",
+            "74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d",
+        ]
+        "###
         );
 
         let db = Persistence::open(tmp_path).expect("Cannot open test DB");
@@ -244,10 +260,10 @@ mod test {
             .expect("Cannot read latest commit");
 
         // The latest commit hash is updated to the hash of the new commit
-        assert_eq!(latest_commit_hash, "d9e8eb09f8270ad5326de946d951433a");
+        insta::assert_debug_snapshot!(latest_commit_hash, @r###""5e0e611ae1c01a131edd79b57d96d9ca4714a823a567c5fa73f3a973503aa0f6c660f2570ea5d9c04942a3e4ab34d35f71598be62e1cb8a7a40b4826aac4009c""###);
 
         // The tip of `main` is updated to the hash of the new commit
         let main_tip = db.read_branch_tip(MAIN_BRANCH_NAME).unwrap().unwrap();
-        assert_eq!(main_tip, "d9e8eb09f8270ad5326de946d951433a");
+        insta::assert_debug_snapshot!(main_tip, @r###""5e0e611ae1c01a131edd79b57d96d9ca4714a823a567c5fa73f3a973503aa0f6c660f2570ea5d9c04942a3e4ab34d35f71598be62e1cb8a7a40b4826aac4009c""###);
     }
 }

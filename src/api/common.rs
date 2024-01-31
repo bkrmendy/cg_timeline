@@ -150,35 +150,34 @@ pub fn parse_blocks_and_pointers(data: &[u8]) -> Vec<BlockMetadata> {
 
 #[cfg(test)]
 mod test {
-    // use crate::blend::{
-    //     blend_file::{Endianness, PointerSize},
-    //     parse_print_blend::print_blend_manual,
-    //     utils::from_file,
-    // };
+    use crate::blend::{
+        blend_file::{Endianness, PointerSize},
+        parse_print_blend::{parse_blend, print_blend},
+        utils::from_file,
+    };
 
-    // #[ignore]
-    // #[test]
-    // fn test_parse_print_blend() {
-    //     let blend_bytes = from_file("data/fixtures/untitled.blend").unwrap();
-    //     let blend_m = parse_blend_manual(blend_bytes).unwrap();
-    //     let blend_mm = blend_m.clone();
+    #[test]
+    fn test_parse_print_blend() {
+        let blend_bytes = from_file("data/fixtures/untitled.blend").unwrap();
+        let blend_m = parse_blend(blend_bytes).unwrap();
+        let blend_mm = blend_m.clone();
 
-    //     assert_eq!(blend_m.header.endianness, Endianness::Little);
-    //     assert_eq!(blend_m.header.pointer_size, PointerSize::Bits64);
-    //     assert_eq!(blend_m.header.version, [51, 48, 51]);
-    //     assert_eq!(blend_m.blocks.len(), 2159);
+        assert_eq!(blend_m.header.endianness, Endianness::Little);
+        assert_eq!(blend_m.header.pointer_size, PointerSize::Bits64);
+        assert_eq!(blend_m.header.version, [51, 48, 51]);
+        insta::assert_debug_snapshot!(blend_m.blocks.len(), @"2159");
 
-    //     let mut blend_bytes_m: Vec<u8> = vec![];
-    //     print_blend_manual(blend_m, &mut blend_bytes_m);
+        let mut blend_bytes_m: Vec<u8> = vec![];
+        print_blend(blend_m, &mut blend_bytes_m);
 
-    //     let blend_again = parse_blend_manual(blend_bytes_m).unwrap();
+        let blend_again = parse_blend(blend_bytes_m).unwrap();
 
-    //     assert_eq!(blend_again.header.endianness, blend_mm.header.endianness);
-    //     assert_eq!(
-    //         blend_again.header.pointer_size,
-    //         blend_mm.header.pointer_size
-    //     );
-    //     assert_eq!(blend_again.header.version, blend_mm.header.version);
-    //     assert_eq!(blend_again.blocks.len(), blend_mm.blocks.len());
-    // }
+        assert_eq!(blend_again.header.endianness, blend_mm.header.endianness);
+        assert_eq!(
+            blend_again.header.pointer_size,
+            blend_mm.header.pointer_size
+        );
+        assert_eq!(blend_again.header.version, blend_mm.header.version);
+        assert_eq!(blend_again.blocks.len(), blend_mm.blocks.len());
+    }
 }

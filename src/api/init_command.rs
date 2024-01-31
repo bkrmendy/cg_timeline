@@ -94,7 +94,8 @@ mod test {
         let current_commit_hash = db
             .read_current_commit_pointer()
             .expect("Cannot read current commit pointer");
-        assert_eq!(current_commit_hash, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
+
+        insta::assert_debug_snapshot!(current_commit_hash, @r###""74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d""###);
 
         let project_id = db.read_project_id().expect("Cannot read project id");
         assert_eq!(project_id, "my amazing project")

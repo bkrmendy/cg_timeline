@@ -32,7 +32,9 @@ mod test {
     use tempfile::NamedTempFile;
 
     use crate::{
-        api::{common::read_latest_commit_hash_on_branch, test_utils},
+        api::{
+            common::read_latest_commit_hash_on_branch, init_command::MAIN_BRANCH_NAME, test_utils,
+        },
         db::db_ops::{Persistence, DB},
     };
 
@@ -44,6 +46,13 @@ mod test {
         let tmp_path = tmp_file.path().to_str().expect("Cannot get temp file path");
 
         test_utils::init_db_from_file(tmp_path, "my-cool-project", "data/fixtures/untitled.blend");
+
+        {
+            let db = Persistence::open(tmp_path).expect("Cannot open test DB");
+            let latest_commit_hash = read_latest_commit_hash_on_branch(&db, MAIN_BRANCH_NAME)
+                .expect("Cannot read latest commit");
+            insta::assert_debug_snapshot!(latest_commit_hash, @r###""74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d""###);
+        }
 
         create_new_branch(tmp_path, "dev").unwrap();
 
@@ -61,11 +70,11 @@ mod test {
         // the current branch name is updated to the name of the new branch
         assert_eq!(current_branch_name, "dev");
 
-        let latest_commit_name = read_latest_commit_hash_on_branch(&db, &current_branch_name)
+        let latest_commit_hash = read_latest_commit_hash_on_branch(&db, &current_branch_name)
             .expect("Cannot read latest commit");
 
         // the latest commit hash stays the same
-        assert_eq!(latest_commit_name, "5bdd30ea8c1523bc75eddbcb1e59e4c7");
+        insta::assert_debug_snapshot!(latest_commit_hash, @r###""74ae7a3e82bc3106ae7c510c7c75f9ec704c96a9d9f2bb2ed889f38ff2c0ead2f349aeb43aba7ddb435c8ba8b2ffdd00406ec41bb3c3b0092e6f5062852c542d""###);
     }
 
     #[test]
