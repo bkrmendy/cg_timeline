@@ -95,7 +95,7 @@ mod test {
     use tempfile::NamedTempFile;
 
     use crate::{
-        api::{init_command::MAIN_BRANCH_NAME, test_utils},
+        api::{init_command::MAIN_BRANCH_NAME, test_utils::{self, create_temp_file_path}},
         db::db_ops::{Persistence, DB},
     };
 
@@ -131,10 +131,10 @@ mod test {
         ]
         "###);
 
-        let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
+        let tmp_blend_path = create_temp_file_path();
 
         restore_checkpoint(
-            tmp_blend_path.path().to_str().unwrap(),
+            &tmp_blend_path,
             tmp_path,
             "94ab91e7ea864efd6cc228472d47d2a1ca648682ff25cbcb79a9d7a286811fb61d75bee6964aaeec2850f881f8b924dc88b626af405d0ffe813596c4f5033f84",
         )

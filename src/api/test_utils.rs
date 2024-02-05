@@ -111,3 +111,20 @@ pub fn init_db_from_simple_timeline(db_path: &str, simple_timeline: SimpleTimeli
     })
     .expect("cannot set pointers");
 }
+
+#[cfg(test)]
+pub fn create_temp_file_path() -> String {
+    use std::env;
+
+    use uuid::Uuid;
+
+    // Get the temporary directory
+    let temp_dir = env::temp_dir();
+
+    // Generate a unique file name, e.g., using UUID
+    let file_name = format!("{}.tmp", Uuid::new_v4().to_string());
+
+    // Combine the temp directory path with the new file name
+    String::from(temp_dir.join(file_name).to_str().unwrap())
+
+}

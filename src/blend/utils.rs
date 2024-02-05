@@ -1,3 +1,4 @@
+use anyhow::Context;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -49,7 +50,7 @@ pub fn to_file_transactional(
     path: &str,
     blend_data: Vec<u8>,
     terminator: Vec<u8>,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     let temp_file = NamedTempFile::new()?;
 
     let mut gz = GzEncoder::new(&temp_file, Compression::default());
@@ -60,7 +61,7 @@ pub fn to_file_transactional(
     gz.flush()?;
     gz.finish()?;
 
-    temp_file.persist(path)?;
+    temp_file.persist(path).context(format!("Cannot persist path: {path}"))?;
 
     Ok(())
 }

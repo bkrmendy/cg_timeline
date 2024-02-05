@@ -35,7 +35,7 @@ mod test {
 
     use crate::{
         api::{
-            common::read_latest_commit_hash_on_branch, init_command::MAIN_BRANCH_NAME, test_utils,
+            common::read_latest_commit_hash_on_branch, init_command::MAIN_BRANCH_NAME, test_utils::{self, create_temp_file_path},
         },
         db::db_ops::{Persistence, DB},
     };
@@ -97,12 +97,12 @@ mod test {
         // a commit to `dev`
         test_utils::commit(tmp_path, "Commit 2", "data/fixtures/untitled_3.blend");
 
-        let tmp_blend_path = NamedTempFile::new().expect("Cannot create temp file");
+        let tmp_blend_path = create_temp_file_path();
 
         switch_branches(
             tmp_path,
             MAIN_BRANCH_NAME,
-            tmp_blend_path.path().to_str().unwrap(),
+            &tmp_blend_path,
         )
         .expect("Cannot switch branches");
 
