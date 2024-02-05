@@ -205,13 +205,11 @@ impl DB for Persistence {
                 [&hash],
                 |row| Ok(Some(row.get(0).expect("No value in row"))),
             )?;
-            if block_data.is_none() {
-                bail!(DBError::Error("No block with hash found".to_owned()))
+
+            if let Some(data) = block_data {
+                result.push(BlockRecord { hash, data })
             } else {
-                result.push(BlockRecord {
-                    hash,
-                    data: block_data.unwrap(),
-                })
+                bail!(DBError::Error("No block with hash found".to_owned()))
             }
         }
 
