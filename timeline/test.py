@@ -1,6 +1,7 @@
 import ctypes
 import json
 import os
+import platform
 
 LOADED_LIB_CACHE = None
 
@@ -10,9 +11,15 @@ def get_lib():
     if LOADED_LIB_CACHE == None:
         script_file = os.path.realpath(__file__)
         directory = os.path.dirname(script_file)
+        
+        system = platform.system()
+        library_name = "libtimeline.dylib"  # Default to macOS
+        if system == "Windows":
+            library_name = "timeline.dll"
+        
         rust_lib_path = os.path.join(
-            directory, 'libtimeline.dylib')
-        rust_lib = ctypes.CDLL(rust_lib_path)
+            directory, library_name)
+        rust_lib = ctypes.cdll.LoadLibrary(rust_lib_path)
         rust_lib.call_command.restype = ctypes.c_char_p
         LOADED_LIB_CACHE = rust_lib
 
@@ -30,9 +37,9 @@ def call_lib(message):
 
 
 result = call_lib({
-    'command': 'create-checkpoint',
+    'command': 'connect',
     'db_path': '../data/.aaaaa.blend.timeline',
-    'path_to_blend': '../data/aaaaa.blend',
+    'path_to_blend': '../data/untitled_3.blend',
     'message': "test"
 })
 

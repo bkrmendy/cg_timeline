@@ -4,6 +4,7 @@ from bpy.app.handlers import persistent
 import ctypes
 import os
 import json
+import platform
 from threading import Timer
 from urllib.parse import quote_plus
 
@@ -85,8 +86,14 @@ def get_lib():
     if LOADED_LIB_CACHE == None:
         script_file = os.path.realpath(__file__)
         directory = os.path.dirname(script_file)
+        
+        system = platform.system()
+        library_name = "libtimeline.dylib"  # Default to macOS
+        if system == "Windows":
+            library_name = "timeline.dll"
+        
         rust_lib_path = os.path.join(
-            directory, 'libtimeline.dylib')
+            directory, library_name)
         rust_lib = ctypes.cdll.LoadLibrary(rust_lib_path)
         rust_lib.call_command.restype = ctypes.c_char_p
         LOADED_LIB_CACHE = rust_lib

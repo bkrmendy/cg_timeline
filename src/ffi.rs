@@ -78,7 +78,7 @@ struct DBPath<'a>(&'a str);
 struct PathToBlend<'a>(&'a str);
 
 fn log_op(db_path: &str, operation: &str) -> anyhow::Result<()> {
-    let log_path = Path::new(db_path).join("log");
+    let log_path = Path::new(db_path).parent().map(|p| p.join("log")).ok_or(anyhow::Error::msg("Cannot construct log file path"))?;
     let mut log = FileRotate::new(
         log_path,
         AppendCount::new(1),
