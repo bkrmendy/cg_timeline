@@ -58,14 +58,13 @@ jobs:
           name: timeline-win-x86_64
           path: timeline-win-x86_64.zip
       - name: Download MacOS Build
-          uses: actions/download-artifact@v3
-          with:
-            name: timeline-macos-x86_64
-            path: timeline-macos-x86_64.zip
+        uses: actions/download-artifact@v3
+        with:
+          name: timeline-macos-x86_64
+          path: timeline-macos-x86_64.zip
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          with:
-            files: |
-              timeline-macos-x86_64.zip
-              timeline-win-x86_64.zip
+          files: |
+            timeline-macos-x86_64.zip
+            timeline-win-x86_64.zip
