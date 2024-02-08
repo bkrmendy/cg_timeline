@@ -29,6 +29,7 @@ jobs:
         with:
           name: timeline-win
           path: timeline.zip
+          compression-level: 0
 
   build-macos:
     runs-on: macos-latest
