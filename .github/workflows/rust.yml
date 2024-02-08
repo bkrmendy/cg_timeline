@@ -14,10 +14,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build
-        run: cargo build --verbose
       - name: Run tests
         run: cargo test --verbose
+      - name: Build
+        run: cargo build --verbose --release
+      - name: copy build artifact to zip file
+        shell: powershell
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp .\target\release\timeline.dll .\timeline\timeline.dll
+          Compress-Archite .\timeline\ timeline.zip -u
+      - name: Upload Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: timeline-win
+          path: timeline.zip
 
   build-macos:
     runs-on: macos-latest
