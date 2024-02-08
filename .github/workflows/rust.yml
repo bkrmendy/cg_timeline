@@ -23,7 +23,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           cp .\target\release\timeline.dll .\timeline\timeline.dll
-          Compress-Archite .\timeline\ timeline.zip -u
+          Compress-Archive .\timeline\ timeline.zip -u
       - name: Upload Archive
         uses: actions/upload-artifact@v3
         with:
