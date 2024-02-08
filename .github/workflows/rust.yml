@@ -27,7 +27,7 @@ jobs:
       - name: Upload Archive
         uses: actions/upload-artifact@v3
         with:
-          name: timeline-win
+          name: timeline-win-x86_64
           path: timeline.zip
           compression-level: 0
 
@@ -35,7 +35,18 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Build
-        run: cargo build --verbose
       - name: Run tests
         run: cargo test --verbose
+      - name: Build
+        run: cargo build --verbose --release
+      - name: copy build artifact to zip file
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp ./target/release/libtimeline.dylib ./timeline/libtimeline.dylib
+          zip -r timeline.zip ./timeline
+      - name: Upload Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: timeline-macos-x86_64
+          path: timeline.zip
+          compression-level: 0
