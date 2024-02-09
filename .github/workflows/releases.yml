@@ -21,12 +21,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           cp .\target\release\timeline.dll .\timeline\timeline.dll
-          Compress-Archive .\timeline\ timeline.zip -u
+          Compress-Archive .\timeline\ timeline-win-x86_64.zip -u
       - name: Upload Archive
         uses: actions/upload-artifact@v3
         with:
           name: timeline-win-x86_64
-          path: timeline.zip
+          path: timeline-win-x86_64.zip
           compression-level: 0
 
   build-macos:
@@ -41,12 +41,12 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           cp ./target/release/libtimeline.dylib ./timeline/libtimeline.dylib
-          zip -r timeline.zip ./timeline
+          zip -r timeline-macos-x86_64.zip ./timeline
       - name: Upload Archive
         uses: actions/upload-artifact@v3
         with:
           name: timeline-macos-x86_64
-          path: timeline.zip
+          path: timeline-macos-x86_64.zip
           compression-level: 0
 
   do-release:
