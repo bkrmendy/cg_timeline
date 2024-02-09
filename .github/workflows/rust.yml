@@ -13,10 +13,6 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Cancel existing runs on this branch
-        uses: fauguste/auto-cancellation-running-action@0.1.4
-        with:
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v3
       - name: Run tests
         run: cargo test --verbose
@@ -24,10 +20,6 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - name: Cancel existing runs on this branch
-        uses: fauguste/auto-cancellation-running-action@0.1.4
-        with:
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@v3
       - name: Run tests
         run: cargo test --verbose
