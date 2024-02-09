@@ -26,7 +26,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: timeline-win-x86_64
-          path: timeline.zip
+          path: timeline-win-x86_64.zip
           compression-level: 0
 
   build-macos:
@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: timeline-macos-x86_64
-          path: timeline.zip
+          path: timeline-macos-x86_64.zip
           compression-level: 0
 
   do-release:
