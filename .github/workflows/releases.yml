@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*.*.*"]
+    tags: [ 'v*.*.*' ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,7 +26,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: timeline-win-x86_64
-          path: timeline-win-x86_64.zip
+          path: timeline.zip
           compression-level: 0
 
   build-macos:
@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: timeline-macos-x86_64
-          path: timeline-macos-x86_64.zip
+          path: timeline.zip
           compression-level: 0
 
   do-release:
@@ -70,5 +70,5 @@ jobs:
         with:
           tag_name: ${{steps.previous_tag.outputs.tag}}
           files: |
-            timeline-macos-x86_64.zip
-            timeline-win-x86_64.zip
+            ./timeline-macos-x86_64.zip
+            ./timeline-win-x86_64.zip
