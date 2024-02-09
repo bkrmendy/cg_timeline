@@ -67,7 +67,6 @@ jobs:
           path: timeline-macos-x86_64.zip
       - name: Release
         uses: "marvinpinto/action-automatic-releases@latest"
-        working-directory: ${{ github.workspace }}
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
