@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Build
+        run: cargo build --verbose --release
+      - name: copy build artifact to zip file
+        shell: powershell
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp .\target\release\timeline.dll .\timeline\timeline.dll
+          Compress-Archive .\timeline\ timeline.zip -u
+      - name: Upload Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: timeline-win-x86_64
+          path: timeline.zip
+          compression-level: 0
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Build
+        run: cargo build --verbose --release
+      - name: copy build artifact to zip file
+        working-directory: ${{ github.workspace }}
+        run: |
+          cp ./target/release/libtimeline.dylib ./timeline/libtimeline.dylib
+          zip -r timeline.zip ./timeline
+      - name: Upload Archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: timeline-macos-x86_64
+          path: timeline.zip
+          compression-level: 0
+
+  do-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos]
+    steps:
+      - name: Download Windows Build
+        uses: actions/download-artifact@v3
+        with:
+          name: timeline-win-x86_64
+          path: timeline-win-x86_64.zip
+      - name: Download MacOS Build
+        uses: actions/download-artifact@v3
+        with:
+          name: timeline-macos-x86_64
+          path: timeline-macos-x86_64.zip
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            timeline-macos-x86_64.zip
+            timeline-win-x86_64.zip
