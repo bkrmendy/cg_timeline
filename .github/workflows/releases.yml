@@ -62,9 +62,17 @@ jobs:
         with:
           name: timeline-macos-x86_64
           path: timeline-macos-x86_64.zip
+      - name: Get previous tag
+        id: previous_tag
+        uses: "WyriHaximus/github-action-get-previous-tag@v1"
+        with:
+          fallback: 0.0.0
       - name: Release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{steps.previous_tag.outputs.tag}}
           files: |
             timeline-macos-x86_64.zip
             timeline-win-x86_64.zip
