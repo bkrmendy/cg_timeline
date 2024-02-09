@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: [ 'v*.*.*' ]
+    tags: ["v*.*.*"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -69,6 +69,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{steps.previous_tag.outputs.tag}}
-          files: |
-            ./timeline-macos-x86_64.zip
-            ./timeline-win-x86_64.zip
+          files: "*.zip"
