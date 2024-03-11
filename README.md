@@ -13,6 +13,8 @@ Blender.
 
 <img width="1239" alt="image" src="https://github.com/bkrmendy/cg_timeline/assets/16385508/d44d6dd2-68b2-4ee2-973f-b99e3624d970">
 
+[Demo video](https://youtu.be/acJvUIIRbJc)
+
 
 ## Installation
 
