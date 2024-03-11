@@ -2,8 +2,6 @@
 
 # Timeline (beta)
 
-> TODO: demo gif
-
 ## TLDR
 
 Timeline is a Blender addon for maintaining multiple versions of the same
@@ -13,13 +11,15 @@ build on each other ("checkpoints").
 In other words, Timeline is a very basic version control tool tailored to
 Blender.
 
-## Table of Contents
-
-> TODO
-
 ## Installation
 
-> TODO
+Download the latest release for your operating system/process architecture from
+Releases. Then, install the addon .zip file from the Preferences panel of
+Blender by clicking `Install` and then choosing the downloaded addon.
+
+> As of now, only Intel processors are supported. Support for more platforms
+> will be added in the future. Alternatively, you can build the addon from
+> source if you have the Rust toolchain installed.
 
 ## Overview
 
@@ -50,20 +50,40 @@ chosen timeline DB, and load that file in Blender.
 
 ## Creating checkpoints
 
-> TODO
+You can create checkpoints by typing a checkpoint name into the box in the
+`New checkpoint` section, and clicking `Create checkpoint`. Timeline will create a
+snapshot of the whole blend file, and will store it in the Timeline DB.
 
 ## Restoring checkpoints
 
-> TODO
+You can restore a given checkpoint by clicking the `Restore` button next to a
+checkpoint's name. Restoring a checkpoint erases any unsaved changes.
+
+You can also export the contents of a checkpoint into a new blend file by
+clicking the arrow next to the `Restore` button. The new blend file will show up
+next to the open blend file, and its name will be the same as the name of the
+checkpoint.
 
 ## Creating branches
 
-> TODO
+A branch is a succession of checkpoints building on each other. Branches make it
+possible to create multiple coexisting versions of a file (such as multiple
+variations of the same model).
+
+You can create a new branch by clicking the `New branch` button in the
+`Branches` section, typing in a name for the branch, and clicking `OK`. Then,
+the new branch will become active.
 
 ## Switching branches
 
-> TODO
+You can switch between branches by clicking on the `Switch to` button next to the
+name of the branch. When switching to a new branch, the blend file will be
+updated with the contents of the most recent checkpoint on that branch.
 
 ## Deleting branches
 
-> TODO
+If you're 100% certain that you won't need a branch anymore, you can delete it
+by clicking the `X` button next to the `Switch to` button. This will delete that
+branch, and all associated checkpoints.
+
+> This feature might be tweaked in the future
